@@ -2467,13 +2467,6 @@ local function ensureFrameProperties()
 	makeDraggable(settingsPanel)
 end
 
-
--- ============================================
--- SPOTIFY MUSIC UI SYSTEM
--- Integrated Spotify playlist browser with smooth UI
--- Based on Spotify.lua logic, redesigned for Sirius
--- ============================================
-
 -- Spotify Variables
 local spotifyEnabled = true
 local spotifyInterval = 0.3
@@ -2788,9 +2781,6 @@ local function createDynamicIsland()
 		hasSong = false
 	}
 
-	---------------------------------------------------------------------
-	-- SPRING MODULE
-	---------------------------------------------------------------------
 	local Spring = {}
 	Spring.__index = Spring
 
@@ -2823,9 +2813,6 @@ local function createDynamicIsland()
 		self.Velocity = 0
 	end
 
-	---------------------------------------------------------------------
-	-- MAIN ISLAND FRAME
-	---------------------------------------------------------------------
 	local hiddenPos = UDim2.new(0.5, 0, -0.15, 0)
 	local shownPos = UDim2.new(0.5, 0, 0.02, 0)
 
@@ -2861,10 +2848,6 @@ local function createDynamicIsland()
 	shadow.ImageTransparency = 0.42
 	shadow.ZIndex = 999
 	shadow.Parent = dynamicIsland
-
-	---------------------------------------------------------------------
-	-- CONTENT CONTAINERS
-	---------------------------------------------------------------------
 
 	-- 1) COMPACT VIEW
 	local compactContainer = Instance.new("CanvasGroup")
@@ -3112,10 +3095,7 @@ local function createDynamicIsland()
 	makeBtn("Prev", "rbxassetid://138415720834412", UDim2.new(0.5, -45, 0.5, 0), UDim2.fromOffset(24, 24), spotifyPrevious)
 	makeBtn("Next", "rbxassetid://88365123525975", UDim2.new(0.5, 45, 0.5, 0), UDim2.fromOffset(24, 24), spotifyNext)
 
-
-	---------------------------------------------------------------------
-	-- ANIMATION LOGIC
-	---------------------------------------------------------------------
+	-- animate 
 	local shapes = {
 		[1] = {
 			width = 400,
@@ -3126,8 +3106,8 @@ local function createDynamicIsland()
 			expandedTrans = 1,
 		},
 		[2] = {
-			width = 340, -- Matched oldSirius
-			height = 160, -- Matched oldSirius
+			width = 340, -- Matched 
+			height = 160, -- Matche
 			corner = 32,
 			scale = 1.02,
 			compactTrans = 1,
@@ -4249,9 +4229,7 @@ else
 	queueNotification("Spotify Unavailable", "Your executor doesn't support getcustomasset, Spotify player is disabled.", 9622474485)
 end
 
--- ============================================
--- END SPOTIFY MUSIC UI SYSTEM
--- ============================================
+-- this is the end... hold your breath and count to ten, does anyone actually read this?
 
 local function checkFriends()
 	if friendsCooldown == 0 then
