@@ -39,11 +39,6 @@ local function encode(a)
  return httpService:JSONEncode(a)
 end
 
-local function makeDraggable(frame)
-	if not frame then return end
-	smoothDrag(frame)
-end
-
 local function decode(a)
  return httpService:JSONDecode(a)
 end
