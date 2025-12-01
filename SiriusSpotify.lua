@@ -39,6 +39,11 @@ local function encode(a)
  return httpService:JSONEncode(a)
 end
 
+local function makeDraggable(frame)
+	if not frame then return end
+	smoothDrag(frame)
+end
+
 local function decode(a)
  return httpService:JSONDecode(a)
 end
@@ -57,6 +62,10 @@ local function convertMs(ms)
  end
 
  return string.format("%s:%s", minutes, seconds)
+end
+
+local function checkSirius()
+	return UI ~= nil and UI.Parent ~= nil
 end
 
 local function makeSpotifyRequest(token, url, method, body)
@@ -881,58 +890,736 @@ local function internalUpdateDynamicIsland(data)
  end
 end
 
+local function updateSpotifyUI(data)
+	if not musicPanel or not musicPanel:FindFirstChild("ContentArea") then return end
+
+	local contentArea = musicPanel.ContentArea
+	local nowPlaying = contentArea:FindFirstChild("NowPlaying")
+	if not nowPlaying then
+		internalUpdateDynamicIsland(data)
+		return
+	end
+
+	if not data then
+		nowPlaying.SongTitle.Text = "No song playing"
+		nowPlaying.ArtistName.Text = "Start playing on Spotify..."
+		internalUpdateDynamicIsland(nil)
+		return
+	end
+
+	nowPlaying.SongTitle.Text = data.song.name
+	nowPlaying.ArtistName.Text = table.concat(data.artistNames, ", ")
+
+	if getcustomasset and data.images.songCover then
+		task.spawn(function()
+			local folder = "Spotify Cache"
+			if not isfolder(folder) then makefolder(folder) end
+
+			local imagePath = folder .. "/" .. data.album.id .. ".jpeg"
+			if not isfile(imagePath) then
+				local success, content = pcall(game.HttpGet, game, data.images.songCover)
+				if success and content then
+					writefile(imagePath, content)
+				end
+			end
+
+			if isfile(imagePath) then
+				local success, assetId = pcall(getcustomasset, imagePath)
+				if success and assetId then
+					local artContainer = nowPlaying:FindFirstChild("ArtContainer")
+					local albumArt = artContainer and artContainer:FindFirstChild("AlbumArt")
+					if albumArt then
+						albumArt.Image = assetId
+					end
+				end
+			end
+		end)
+	end
+
+	internalUpdateDynamicIsland(data)
+end
+
+local function startSpotifyUpdateLoop()
+	if spotifyUpdateRoutine then return end
+
+	spotifyUpdateRoutine = task.spawn(function()
+		while spotifyEnabled and checkSirius() do
+			pcall(function()
+				if userToken and checkSpotifyToken(userToken) then
+					local currentPlaying = getCurrentlyPlaying(userToken)
+					local currentState = getCurrentState(userToken)
+
+					if currentPlaying then
+						updateSpotifyUI(currentPlaying)
+					else
+						internalUpdateDynamicIsland(nil)
+					end
+
+					if currentState then
+						isPlaying = currentState.playing
+						shuffleEnabled = currentState.shuffle
+						loopEnabled = currentState.loop == "context"
+					end
+				end
+			end)
+			task.wait(spotifyInterval)
+		end
+		spotifyUpdateRoutine = nil
+	end)
+end
+
 local function buildSpotifyUIInternal()
- musicPanel = Instance.new("CanvasGroup")
- musicPanel.Name = "SpotifyMusicPanel"
- musicPanel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
- musicPanel.BackgroundTransparency = 0
- musicPanel.GroupTransparency = 0
- musicPanel.BorderSizePixel = 0
- musicPanel.ClipsDescendants = true
- musicPanel.AnchorPoint = Vector2.new(0.5, 0.5)
- musicPanel.Position = UDim2.new(0.5, 0, 0.5, 0)
- musicPanel.Size = UDim2.new(0, 600, 0, 350)
- musicPanel.Visible = false
- musicPanel.ZIndex = 100
+	musicPanel = Instance.new("CanvasGroup")
+	musicPanel.Name = "SpotifyMusicPanel"
+	musicPanel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	musicPanel.BackgroundTransparency = 0
+	musicPanel.GroupTransparency = 0
+	musicPanel.BorderSizePixel = 0
+	musicPanel.ClipsDescendants = true
+	musicPanel.AnchorPoint = Vector2.new(0.5, 0.5)
+	musicPanel.Position = UDim2.new(0.5, 0, 0.5, 0)
+	musicPanel.Size = UDim2.new(0, 600, 0, 350)
+	musicPanel.Visible = false
+	musicPanel.ZIndex = 100
 
- local glowFrame = Instance.new("Frame")
- glowFrame.Name = "GlowFrame"
- glowFrame.Size = UDim2.new(1, 0, 1, 0)
- glowFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
- glowFrame.BackgroundTransparency = 0
- glowFrame.BorderSizePixel = 0
- glowFrame.ClipsDescendants = true
- glowFrame.Visible = false
- glowFrame.ZIndex = 101
- glowFrame.Parent = musicPanel
+	local glowFrame = Instance.new("Frame")
+	glowFrame.Name = "GlowFrame"
+	glowFrame.Size = UDim2.new(1, 0, 1, 0)
+	glowFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	glowFrame.BackgroundTransparency = 0
+	glowFrame.BorderSizePixel = 0
+	glowFrame.ClipsDescendants = true
+	glowFrame.Visible = false
+	glowFrame.ZIndex = 101
+	glowFrame.Parent = musicPanel
 
- local glowCorner = Instance.new("UICorner")
- glowCorner.CornerRadius = UDim.new(0, 9)
- glowCorner.Parent = glowFrame
+	local glowCorner = Instance.new("UICorner")
+	glowCorner.CornerRadius = UDim.new(0, 9)
+	glowCorner.Parent = glowFrame
 
- local uiGradient = Instance.new("UIGradient")
- uiGradient.Color = ColorSequence.new({
-  ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 20, 20)),
-  ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0))
- })
- uiGradient.Transparency = NumberSequence.new({
-  NumberSequenceKeypoint.new(0, 0.9),
-  NumberSequenceKeypoint.new(1, 1)
- })
- uiGradient.Rotation = 85
- uiGradient.Offset = Vector2.new(0, 1.5)
- uiGradient.Parent = glowFrame
+	local glowGradient = Instance.new("UIGradient")
+	glowGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 20, 20)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0))
+	})
+	glowGradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.9),
+		NumberSequenceKeypoint.new(1, 1)
+	})
+	glowGradient.Rotation = 85
+	glowGradient.Offset = Vector2.new(0, 1.5)
+	glowGradient.Parent = glowFrame
 
- musicPanel.Parent = UI
- createDynamicIsland()
+	musicPanel.Parent = UI
+	createDynamicIsland()
 
- local panelGradient = Instance.new("UIGradient")
- panelGradient.Color = ColorSequence.new{
-  ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0)),
-  ColorSequenceKeypoint.new(1, Color3.fromRGB(5, 5, 5))
- }
- panelGradient.Rotation = 45
- panelGradient.Parent = musicPanel
+	local panelGradient = Instance.new("UIGradient")
+	panelGradient.Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(5, 5, 5))
+	}
+	panelGradient.Rotation = 45
+	panelGradient.Parent = musicPanel
+
+	local shadow = Instance.new("ImageLabel")
+	shadow.Name = "Shadow"
+	shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+	shadow.BackgroundTransparency = 1
+	shadow.Position = UDim2.new(0.5, 0, 0.5, 5)
+	shadow.Size = UDim2.new(1, 40, 1, 40)
+	shadow.ZIndex = 99
+	shadow.Image = "rbxassetid://6015897843"
+	shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+	shadow.ImageTransparency = 0.7
+	shadow.Parent = musicPanel
+
+	local uiCorner = Instance.new("UICorner")
+	uiCorner.CornerRadius = UDim.new(0, 9)
+	uiCorner.Parent = musicPanel
+
+	local loadingOverlay = Instance.new("Frame")
+	loadingOverlay.Name = "LoadingOverlay"
+	loadingOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	loadingOverlay.BackgroundTransparency = 0.3
+	loadingOverlay.Size = UDim2.new(1, 0, 1, 0)
+	loadingOverlay.Visible = false
+	loadingOverlay.ZIndex = 200
+	loadingOverlay.Parent = musicPanel
+
+	local loadingCorner = Instance.new("UICorner")
+	loadingCorner.CornerRadius = UDim.new(0, 9)
+	loadingCorner.Parent = loadingOverlay
+
+	local loadingIcon = Instance.new("ImageLabel")
+	loadingIcon.Name = "LoadingIcon"
+	loadingIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+	loadingIcon.BackgroundTransparency = 1
+	loadingIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
+	loadingIcon.Size = UDim2.new(0, 40, 0, 40)
+	loadingIcon.Image = "rbxassetid://3570695787"
+	loadingIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+	loadingIcon.ZIndex = 201
+	loadingIcon.Parent = loadingOverlay
+
+	local rotationTween = tweenService:Create(loadingIcon, TweenInfo.new(1.2, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), {
+		Rotation = 360
+	})
+
+	local header = Instance.new("Frame")
+	header.Name = "Header"
+	header.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	header.BackgroundTransparency = 1
+	header.BorderSizePixel = 0
+	header.Size = UDim2.new(1, 0, 0, 60)
+	header.ZIndex = 101
+	header.Parent = musicPanel
+
+	local headerCorner = Instance.new("UICorner")
+	headerCorner.CornerRadius = UDim.new(0, 9)
+	headerCorner.Parent = header
+
+	local headerFix = Instance.new("Frame")
+	headerFix.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	headerFix.BackgroundTransparency = 1
+	headerFix.BorderSizePixel = 0
+	headerFix.Position = UDim2.new(0, 0, 1, -10)
+	headerFix.Size = UDim2.new(1, 0, 0, 10)
+	headerFix.ZIndex = 101
+	headerFix.Parent = header
+
+	local logo = Instance.new("ImageLabel")
+	logo.Name = "Logo"
+	logo.BackgroundTransparency = 1
+	logo.Position = UDim2.new(0, 20, 0, 15)
+	logo.Size = UDim2.new(0, 30, 0, 30)
+	logo.Image = "rbxassetid://9622474485"
+	logo.ZIndex = 102
+	logo.Parent = header
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Name = "TitleLabel"
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Position = UDim2.new(0, 60, 0, 10)
+	titleLabel.Size = UDim2.new(0, 200, 0, 25)
+	titleLabel.Font = Enum.Font.GothamBold
+	titleLabel.Text = "Spotify"
+	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	titleLabel.TextSize = 18
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.ZIndex = 102
+	titleLabel.Parent = header
+
+	local subtitle = Instance.new("TextLabel")
+	subtitle.Name = "Subtitle"
+	subtitle.BackgroundTransparency = 1
+	subtitle.Position = UDim2.new(0, 60, 0, 35)
+	subtitle.Size = UDim2.new(0, 300, 0, 15)
+	subtitle.Font = Enum.Font.Gotham
+	subtitle.Text = "Connected to your device"
+	subtitle.TextColor3 = Color3.fromRGB(30, 215, 96)
+	subtitle.TextSize = 12
+	subtitle.TextXAlignment = Enum.TextXAlignment.Left
+	subtitle.ZIndex = 102
+	subtitle.Parent = header
+
+	local tokenSection = Instance.new("Frame")
+	tokenSection.Name = "TokenSection"
+	tokenSection.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+	tokenSection.BackgroundTransparency = 0.5
+	tokenSection.BorderSizePixel = 0
+	tokenSection.Position = UDim2.new(0, 20, 0, 80)
+	tokenSection.Size = UDim2.new(1, -40, 1, -100)
+	tokenSection.Visible = true
+	tokenSection.ZIndex = 101
+	tokenSection.Parent = musicPanel
+
+	local tokenCorner = Instance.new("UICorner")
+	tokenCorner.CornerRadius = UDim.new(0, 12)
+	tokenCorner.Parent = tokenSection
+
+	local tokenTitle = Instance.new("TextLabel")
+	tokenTitle.BackgroundTransparency = 1
+	tokenTitle.Position = UDim2.new(0, 20, 0, 20)
+	tokenTitle.Size = UDim2.new(1, -40, 0, 20)
+	tokenTitle.Font = Enum.Font.GothamBold
+	tokenTitle.Text = "Authentication Required"
+	tokenTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+	tokenTitle.TextSize = 16
+	tokenTitle.TextXAlignment = Enum.TextXAlignment.Left
+	tokenTitle.ZIndex = 102
+	tokenTitle.Parent = tokenSection
+
+	local tokenInput = Instance.new("TextBox")
+	tokenInput.Name = "TokenInput"
+	tokenInput.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+	tokenInput.Position = UDim2.new(0.5, 0, 0.5, -20)
+	tokenInput.AnchorPoint = Vector2.new(0.5, 0.5)
+	tokenInput.Size = UDim2.new(0, 360, 0, 45)
+	tokenInput.Font = Enum.Font.Gotham
+	tokenInput.PlaceholderText = "Paste your Spotify OAuth token here..."
+	tokenInput.Text = ""
+	tokenInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+	tokenInput.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+	tokenInput.TextSize = 14
+	tokenInput.TextXAlignment = Enum.TextXAlignment.Center
+	tokenInput.ClearTextOnFocus = false
+	tokenInput.ZIndex = 102
+	tokenInput.Parent = tokenSection
+
+	local inputCorner = Instance.new("UICorner")
+	inputCorner.CornerRadius = UDim.new(0, 8)
+	inputCorner.Parent = tokenInput
+
+	local inputStroke = Instance.new("UIStroke")
+	inputStroke.Color = Color3.fromRGB(60, 60, 60)
+	inputStroke.Thickness = 1
+	inputStroke.Parent = tokenInput
+
+	local submitButton = Instance.new("TextButton")
+	submitButton.Name = "SubmitButton"
+	submitButton.BackgroundColor3 = Color3.fromRGB(30, 215, 96)
+	submitButton.Position = UDim2.new(0.5, 0, 0.5, 45)
+	submitButton.AnchorPoint = Vector2.new(0.5, 0.5)
+	submitButton.Size = UDim2.new(0, 120, 0, 35)
+	submitButton.Font = Enum.Font.GothamBold
+	submitButton.Text = "Connect"
+	submitButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+	submitButton.TextSize = 13
+	submitButton.ZIndex = 102
+	submitButton.Parent = tokenSection
+
+	local submitCorner = Instance.new("UICorner")
+	submitCorner.CornerRadius = UDim.new(0, 20)
+	submitCorner.Parent = submitButton
+
+	submitButton.MouseEnter:Connect(function()
+		tweenService:Create(submitButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(35, 235, 105)}):Play()
+	end)
+	submitButton.MouseLeave:Connect(function()
+		tweenService:Create(submitButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(30, 215, 96)}):Play()
+	end)
+
+	local howButton = Instance.new("TextButton")
+	howButton.Name = "HowButton"
+	howButton.BackgroundTransparency = 1
+	howButton.Position = UDim2.new(0.5, 0, 0.5, 85)
+	howButton.AnchorPoint = Vector2.new(0.5, 0.5)
+	howButton.Size = UDim2.new(0, 50, 0, 25)
+	howButton.Font = Enum.Font.Gotham
+	howButton.Text = "How?"
+	howButton.TextColor3 = Color3.fromRGB(150, 150, 150)
+	howButton.TextSize = 11
+	howButton.TextXAlignment = Enum.TextXAlignment.Center
+	howButton.ZIndex = 102
+	howButton.Parent = tokenSection
+
+	local contentArea = Instance.new("Frame")
+	contentArea.Name = "ContentArea"
+	contentArea.BackgroundTransparency = 1
+	contentArea.Position = UDim2.new(0, 20, 0, 80)
+	contentArea.Size = UDim2.new(1, -40, 1, -100)
+	contentArea.Visible = false
+	contentArea.ZIndex = 101
+	contentArea.Parent = musicPanel
+
+	playlistBrowser = Instance.new("ScrollingFrame")
+	playlistBrowser.Name = "PlaylistBrowser"
+	playlistBrowser.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+	playlistBrowser.BackgroundTransparency = 0.5
+	playlistBrowser.BorderSizePixel = 0
+	playlistBrowser.Position = UDim2.new(0, 0, 0, 0)
+	playlistBrowser.Size = UDim2.new(0, 220, 1, 0)
+	playlistBrowser.ScrollBarThickness = 2
+	playlistBrowser.ScrollBarImageColor3 = Color3.fromRGB(30, 215, 96)
+	playlistBrowser.CanvasSize = UDim2.new(0, 0, 0, 0)
+	playlistBrowser.ZIndex = 102
+	playlistBrowser.Parent = contentArea
+
+	local browserCorner = Instance.new("UICorner")
+	browserCorner.CornerRadius = UDim.new(0, 12)
+	browserCorner.Parent = playlistBrowser
+
+	local browserLayout = Instance.new("UIListLayout")
+	browserLayout.Padding = UDim.new(0, 8)
+	browserLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	browserLayout.Parent = playlistBrowser
+
+	local browserPadding = Instance.new("UIPadding")
+	browserPadding.PaddingTop = UDim.new(0, 10)
+	browserPadding.PaddingBottom = UDim.new(0, 10)
+	browserPadding.PaddingLeft = UDim.new(0, 10)
+	browserPadding.PaddingRight = UDim.new(0, 10)
+	browserPadding.Parent = playlistBrowser
+
+	browserLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		playlistBrowser.CanvasSize = UDim2.new(0, 0, 0, browserLayout.AbsoluteContentSize.Y + 20)
+	end)
+
+	local nowPlaying = Instance.new("Frame")
+	nowPlaying.Name = "NowPlaying"
+	nowPlaying.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+	nowPlaying.BackgroundTransparency = 0.5
+	nowPlaying.BorderSizePixel = 0
+	nowPlaying.Position = UDim2.new(0, 235, 0, 0)
+	nowPlaying.Size = UDim2.new(1, -235, 1, 0)
+	nowPlaying.ZIndex = 102
+	nowPlaying.Parent = contentArea
+
+	local nowPlayingCorner = Instance.new("UICorner")
+	nowPlayingCorner.CornerRadius = UDim.new(0, 12)
+	nowPlayingCorner.Parent = nowPlaying
+
+	for _, child in ipairs(nowPlaying:GetChildren()) do
+		if child:IsA("GuiObject") then child:Destroy() end
+	end
+
+	local artContainer = Instance.new("Frame")
+	artContainer.Name = "ArtContainer"
+	artContainer.BackgroundTransparency = 1
+	artContainer.Position = UDim2.new(0.5, -75, 0.5, -100)
+	artContainer.Size = UDim2.new(0, 150, 0, 150)
+	artContainer.ZIndex = 103
+	artContainer.Parent = nowPlaying
+
+	local albumArt = Instance.new("ImageLabel")
+	albumArt.Name = "AlbumArt"
+	albumArt.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	albumArt.Size = UDim2.new(1, 0, 1, 0)
+	albumArt.Image = ""
+	albumArt.ZIndex = 104
+	albumArt.Parent = artContainer
+
+	local artCorner = Instance.new("UICorner")
+	artCorner.CornerRadius = UDim.new(0, 12)
+	artCorner.Parent = albumArt
+
+	local songTitle = Instance.new("TextLabel")
+	songTitle.Name = "SongTitle"
+	songTitle.BackgroundTransparency = 1
+	songTitle.Position = UDim2.new(0, 20, 0.5, 65)
+	songTitle.Size = UDim2.new(1, -40, 0, 30)
+	songTitle.Font = Enum.Font.GothamBold
+	songTitle.Text = "No song playing"
+	songTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+	songTitle.TextSize = 20
+	songTitle.TextXAlignment = Enum.TextXAlignment.Center
+	songTitle.TextTruncate = Enum.TextTruncate.AtEnd
+	songTitle.ZIndex = 103
+	songTitle.Parent = nowPlaying
+
+	local artistName = Instance.new("TextLabel")
+	artistName.Name = "ArtistName"
+	artistName.BackgroundTransparency = 1
+	artistName.Position = UDim2.new(0, 20, 0.5, 90)
+	artistName.Size = UDim2.new(1, -40, 0, 20)
+	artistName.Font = Enum.Font.GothamMedium
+	artistName.Text = "Start playing on Spotify..."
+	artistName.TextColor3 = Color3.fromRGB(180, 180, 180)
+	artistName.TextSize = 14
+	artistName.TextXAlignment = Enum.TextXAlignment.Center
+	artistName.TextTruncate = Enum.TextTruncate.AtEnd
+	artistName.ZIndex = 103
+	artistName.Parent = nowPlaying
+
+	makeDraggable(musicPanel)
+
+	local function fadeChildren(parent, transparency)
+		for _, child in ipairs(parent:GetChildren()) do
+			if child:IsA("TextLabel") or child:IsA("TextButton") then
+				tweenService:Create(child, TweenInfo.new(0.5), {TextTransparency = transparency}):Play()
+			elseif child:IsA("ImageLabel") or child:IsA("ImageButton") then
+				tweenService:Create(child, TweenInfo.new(0.5), {ImageTransparency = transparency}):Play()
+			elseif child:IsA("GuiObject") then
+				tweenService:Create(child, TweenInfo.new(0.5), {BackgroundTransparency = transparency}):Play()
+			end
+		end
+	end
+
+	submitButton.MouseButton1Click:Connect(function()
+		if loadingOverlay.Visible then return end
+		local token = tokenInput.Text
+		if token == "" then
+			queueNotification("Spotify", "Please paste your OAuth token first.", 9622474485)
+			return
+		end
+
+		loadingOverlay.Visible = true
+		rotationTween:Play()
+
+		task.spawn(function()
+			local isValid = checkSpotifyToken(token)
+			rotationTween:Cancel()
+			loadingIcon.Rotation = 0
+			loadingOverlay.Visible = false
+
+			if not isValid then
+				queueNotification("Spotify Error", "Invalid token. Please check and try again.", 9622474485)
+				return
+			end
+
+			userToken = token
+			queueNotification("Spotify Connected", "Successfully connected to Spotify!", 9622474485)
+			startSpotifyUpdateLoop()
+
+			tweenService:Create(tokenSection, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+			fadeChildren(tokenSection, 1)
+			task.wait(0.5)
+			tokenSection.Visible = false
+
+			contentArea.Visible = true
+			for _, child in ipairs(contentArea:GetChildren()) do
+				if child:IsA("GuiObject") then
+					child.BackgroundTransparency = 1
+					tweenService:Create(child, TweenInfo.new(0.5), {BackgroundTransparency = 0.5}):Play()
+				end
+			end
+
+			task.spawn(function()
+				local playlists = getUserPlaylists(userToken)
+				if not playlists then return end
+
+				for _, playlist in ipairs(playlists) do
+					local playlistFrame = Instance.new("Frame")
+					playlistFrame.Name = playlist.id
+					playlistFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+					playlistFrame.BackgroundTransparency = 0.6
+					playlistFrame.Size = UDim2.new(1, 0, 0, 60)
+					playlistFrame.ZIndex = 103
+					playlistFrame.Parent = playlistBrowser
+
+					local playlistCorner = Instance.new("UICorner")
+					playlistCorner.CornerRadius = UDim.new(0, 10)
+					playlistCorner.Parent = playlistFrame
+
+					local playlistTitle = Instance.new("TextLabel")
+					playlistTitle.BackgroundTransparency = 1
+					playlistTitle.Position = UDim2.new(0, 15, 0, 15)
+					playlistTitle.Size = UDim2.new(1, -30, 0, 20)
+					playlistTitle.Font = Enum.Font.GothamBold
+					playlistTitle.Text = playlist.name
+					playlistTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+					playlistTitle.TextSize = 14
+					playlistTitle.TextXAlignment = Enum.TextXAlignment.Left
+					playlistTitle.TextTruncate = Enum.TextTruncate.AtEnd
+					playlistTitle.ZIndex = 104
+					playlistTitle.Parent = playlistFrame
+
+					local trackCount = Instance.new("TextLabel")
+					trackCount.BackgroundTransparency = 1
+					trackCount.Position = UDim2.new(0, 15, 0, 40)
+					trackCount.Size = UDim2.new(1, -30, 0, 15)
+					trackCount.Font = Enum.Font.Gotham
+					trackCount.Text = playlist.tracks.total .. " tracks"
+					trackCount.TextColor3 = Color3.fromRGB(150, 150, 150)
+					trackCount.TextSize = 12
+					trackCount.TextXAlignment = Enum.TextXAlignment.Left
+					trackCount.ZIndex = 104
+					trackCount.Parent = playlistFrame
+
+					local playlistButton = Instance.new("TextButton")
+					playlistButton.BackgroundTransparency = 1
+					playlistButton.Size = UDim2.new(1, 0, 1, 0)
+					playlistButton.Text = ""
+					playlistButton.ZIndex = 105
+					playlistButton.Parent = playlistFrame
+
+					playlistButton.MouseEnter:Connect(function()
+						tweenService:Create(playlistFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(60, 60, 60)}):Play()
+					end)
+
+					playlistButton.MouseLeave:Connect(function()
+						tweenService:Create(playlistFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(40, 40, 40)}):Play()
+					end)
+
+					playlistButton.MouseButton1Click:Connect(function()
+						local existingList = contentArea:FindFirstChild("TrackList")
+						if existingList then existingList:Destroy() end
+
+						local trackList = Instance.new("ScrollingFrame")
+						trackList.Name = "TrackList"
+						trackList.BackgroundTransparency = 1
+						trackList.Size = UDim2.new(1, -40, 1, -50)
+						trackList.Position = UDim2.new(0, 20, 0, 50)
+						trackList.ScrollBarThickness = 2
+						trackList.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 80)
+						trackList.BorderSizePixel = 0
+						trackList.Visible = true
+						trackList.ZIndex = 200
+						trackList.Parent = contentArea
+
+						local listLayout = Instance.new("UIListLayout")
+						listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+						listLayout.Padding = UDim.new(0, 5)
+						listLayout.Parent = trackList
+						listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+							trackList.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
+						end)
+
+						enableSmoothScroll(trackList)
+
+						playlistBrowser.Visible = false
+						nowPlaying.Visible = false
+						glowFrame.Visible = true
+						tweenService:Create(glowGradient, TweenInfo.new(0.6, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Offset = Vector2.new(0, 0.9)}):Play()
+
+						local backArrowImage = "rbxassetid://6031090991"
+						local backBtn = Instance.new("ImageButton")
+						backBtn.Name = "Back"
+						backBtn.Size = UDim2.new(0, 24, 0, 24)
+						backBtn.BackgroundTransparency = 1
+						backBtn.Image = backArrowImage
+						backBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
+						backBtn.ScaleType = Enum.ScaleType.Fit
+						backBtn.Rotation = 90
+						backBtn.Position = UDim2.new(0, -12, 0, 18)
+						backBtn.ImageTransparency = 1
+						backBtn.ZIndex = 205
+						backBtn.Parent = contentArea
+
+						tweenService:Create(backBtn, TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+							Position = UDim2.new(0, 25, 0, 18),
+							ImageTransparency = 0
+						}):Play()
+
+						local function fadeOutList(container)
+							for _, child in ipairs(container:GetChildren()) do
+								if child:IsA("GuiObject") then
+									if child:IsA("Frame") or child:IsA("TextButton") then
+										tweenService:Create(child, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+									end
+									for _, desc in ipairs(child:GetDescendants()) do
+										if desc:IsA("TextLabel") or desc:IsA("TextButton") then
+											tweenService:Create(desc, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1}):Play()
+										elseif desc:IsA("ImageLabel") or desc:IsA("ImageButton") then
+											tweenService:Create(desc, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {ImageTransparency = 1}):Play()
+										end
+									end
+								end
+							end
+						end
+
+						backBtn.MouseButton1Click:Connect(function()
+							fadeOutList(trackList)
+							tweenService:Create(backBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {ImageTransparency = 1}):Play()
+							tweenService:Create(trackList, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {ScrollBarImageTransparency = 1}):Play()
+							task.wait(0.2)
+
+							glowGradient.Offset = Vector2.new(0, 1.5)
+							glowFrame.Visible = false
+
+							trackList:Destroy()
+							backBtn:Destroy()
+							playlistBrowser.Visible = true
+							nowPlaying.Visible = true
+						end)
+
+						task.spawn(function()
+							local tracks = getPlaylistTracks(userToken, playlist.id)
+							if typeof(tracks) ~= "table" then
+								queueNotification("Spotify Error", "Couldn't load tracks for this playlist.", 9622474485)
+								return
+							end
+
+							local order = 0
+							for _, item in ipairs(tracks) do
+								local trackInfo = item.track
+								if trackInfo then
+									order += 1
+									local trackBtn = Instance.new("TextButton")
+									trackBtn.Name = "Track"
+									trackBtn.Size = UDim2.new(1, 0, 0, 60)
+									trackBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+									trackBtn.BackgroundTransparency = 0.6
+									trackBtn.Text = ""
+									trackBtn.AutoButtonColor = false
+									trackBtn.ZIndex = 201
+									trackBtn.Parent = trackList
+
+									trackBtn.MouseEnter:Connect(function()
+										tweenService:Create(trackBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
+									end)
+									trackBtn.MouseLeave:Connect(function()
+										tweenService:Create(trackBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(30, 30, 30)}):Play()
+									end)
+
+									local trackCorner = Instance.new("UICorner")
+									trackCorner.CornerRadius = UDim.new(0, 6)
+									trackCorner.Parent = trackBtn
+
+									local art = Instance.new("ImageLabel")
+									art.Name = "Art"
+									art.Position = UDim2.new(0, 8, 0.5, -22)
+									art.Size = UDim2.new(0, 44, 0, 44)
+									art.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+									art.BackgroundTransparency = 1
+									art.ZIndex = 202
+									art.Parent = trackBtn
+
+									local artCorner = Instance.new("UICorner")
+									artCorner.CornerRadius = UDim.new(0, 4)
+									artCorner.Parent = art
+
+									task.spawn(function()
+										if trackInfo.album and trackInfo.album.images and #trackInfo.album.images > 0 then
+											local imgData = trackInfo.album.images[#trackInfo.album.images]
+											if imgData then
+												local imgUrl = imgData.url
+												local fileName = trackInfo.album.id .. "_small.jpg"
+												local path = "Spotify Cache/" .. fileName
+
+												if isfile(path) then
+													art.Image = getcustomasset(path)
+												else
+													local content = game:HttpGet(imgUrl)
+													writefile(path, content)
+													art.Image = getcustomasset(path)
+												end
+											end
+										end
+									end)
+
+									local title = Instance.new("TextLabel")
+									title.BackgroundTransparency = 1
+									title.Position = UDim2.new(0, 60, 0, 10)
+									title.Size = UDim2.new(1, -70, 0, 20)
+									title.Font = Enum.Font.GothamBold
+									title.Text = trackInfo.name
+									title.TextColor3 = Color3.fromRGB(255, 255, 255)
+									title.TextSize = 13
+									title.TextXAlignment = Enum.TextXAlignment.Left
+									title.TextTruncate = Enum.TextTruncate.AtEnd
+									title.ZIndex = 202
+									title.Parent = trackBtn
+
+									local artist = Instance.new("TextLabel")
+									artist.BackgroundTransparency = 1
+									artist.Position = UDim2.new(0, 60, 0, 32)
+									artist.Size = UDim2.new(1, -70, 0, 15)
+									artist.Font = Enum.Font.Gotham
+									artist.Text = trackInfo.artists[1] and trackInfo.artists[1].name or ""
+									artist.TextColor3 = Color3.fromRGB(180, 180, 180)
+									artist.TextSize = 11
+									artist.TextXAlignment = Enum.TextXAlignment.Left
+									artist.TextTruncate = Enum.TextTruncate.AtEnd
+									artist.ZIndex = 202
+									artist.Parent = trackBtn
+
+									trackBtn.MouseButton1Click:Connect(function()
+										spotifyPlayTrack(trackInfo.uri)
+									end)
+								end
+							end
+						end)
+					end)
+				end
+			end)
+		end)
+	end)
+
+	tokenSection.Name = "TokenSection"
+	contentArea.Name = "ContentArea"
+	musicPanel.TokenSection = tokenSection
+	musicPanel.ContentArea = contentArea
 end
 
 function SiriusSpotify.init(env)
