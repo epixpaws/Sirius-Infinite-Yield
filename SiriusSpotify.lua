@@ -253,6 +253,11 @@ local function smoothDrag(frame)
  end)
 end
 
+local function makeDraggable(frame)
+	if not frame then return end
+	smoothDrag(frame)
+end
+
 local function enableSmoothScroll(scrollFrame)
  local targetPos = scrollFrame.CanvasPosition.Y
  local currentPos = scrollFrame.CanvasPosition.Y
