@@ -954,5 +954,8 @@ function SiriusSpotify.updateDynamicIsland(data)
  internalUpdateDynamicIsland(data)
 end
 
-return SiriusSpotify
+function SiriusSpotify.getMusicPanel()
+ return musicPanel
+end
 
+return SiriusSpotify
