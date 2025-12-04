@@ -1899,12 +1899,17 @@ end
 function SiriusSpotify.buildSpotifyUI()
 	buildSpotifyUIInternal()
 	if musicPanel then
-		musicPanel.Visible = true
+		musicPanel.Visible = false -- Keep hidden until button click
+		musicPanel.GroupTransparency = 1
 	end
 end
 
 function SiriusSpotify.updateDynamicIsland(data)
 	updateDynamicIsland(data)
+end
+
+function SiriusSpotify.isAuthenticated()
+	return userToken ~= nil and userToken ~= ""
 end
 
 function SiriusSpotify.getMusicPanel()
