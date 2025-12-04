@@ -1,6 +1,5 @@
 local SiriusSpotify = {}
 
--- Services
 local httpService
 local tweenService
 local userInputService
@@ -10,15 +9,13 @@ local contentProvider
 local players
 local lighting
 
--- Environment & Globals
 local httpRequest
 local UI
 local siriusValues
 local queueNotification
 local getcustomasset
-local teleportService -- Added for consistency if needed, though not used in Spotify logic directly
+local teleportService
 
--- Spotify Variables
 local spotifyEnabled = true
 local spotifyInterval = 0.3
 local userToken = nil
@@ -32,7 +29,6 @@ local durationMs = 0
 local spotifyUpdateRoutine = nil
 local musicPanel = nil
 
--- Spotify UI Variables
 local spotifyMain = nil
 local playlistBrowser = nil
 local dynamicIsland = nil
@@ -46,12 +42,10 @@ local dynamicIslandPlayIcon = nil
 local dynamicIslandState = {expanded = false, hasSong = false}
 local dynamicIslandShow = nil
 
--- Forward Declarations
 local startSpotifyUpdateLoop
 local updateSpotifyUI
 local updateDynamicIsland
 
--- Helper Functions
 local function encode(a)
 	return httpService:JSONEncode(a)
 end
@@ -124,7 +118,7 @@ end
 
 local function smoothDrag(frame)
 	local dragging, dragInput, dragStart, startPos
-	local dragSpeed = 0.15 -- Smoothness factor
+	local dragSpeed = 0.15
 
 	local function update(input)
 		local delta = input.Position - dragStart
@@ -163,15 +157,15 @@ local function enableSmoothScroll(scrollFrame)
 	local targetPos = scrollFrame.CanvasPosition.Y
 	local currentPos = scrollFrame.CanvasPosition.Y
 	
-	scrollFrame.ScrollingEnabled = false -- Disable default scroll
+	scrollFrame.ScrollingEnabled = false
 	
 	scrollFrame.InputChanged:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseWheel then
 			local maxScroll = math.max(0, scrollFrame.AbsoluteCanvasSize.Y - scrollFrame.AbsoluteWindowSize.Y)
-			local scrollAmount = 120 -- Scroll speed
-			if input.Position.Z > 0 then -- Scroll Up
+			local scrollAmount = 120
+			if input.Position.Z > 0 then
 				targetPos = math.max(0, targetPos - scrollAmount)
-			else -- Scroll Down
+			else
 				targetPos = math.min(maxScroll, targetPos + scrollAmount)
 			end
 		end
@@ -187,13 +181,11 @@ local function enableSmoothScroll(scrollFrame)
 		local maxScroll = math.max(0, scrollFrame.AbsoluteCanvasSize.Y - scrollFrame.AbsoluteWindowSize.Y)
 		targetPos = math.clamp(targetPos, 0, maxScroll)
 		
-		-- Smooth Lerp
 		currentPos = currentPos + (targetPos - currentPos) * 15 * dt
 		scrollFrame.CanvasPosition = Vector2.new(0, currentPos)
 	end)
 end
 
--- Spotify API Functions
 local function makeSpotifyRequest(token, url, method, body)
 	local requestData = {
 		Url = "https://api.spotify.com/v1/"..url,
@@ -220,13 +212,12 @@ local function makeSpotifyRequest(token, url, method, body)
 
 	if parsedBody and parsedBody.error then
 		if parsedBody.error.message == "The access token expired" then
-			if userToken then -- Only notify if we thought we were logged in
+			if userToken then
 				if queueNotification then
 					queueNotification("Spotify Session Expired", "Please re-enter your token.", 9622474485)
 				end
 				userToken = nil
 				
-				-- Reset UI
 				if musicPanel then
 					local contentArea = musicPanel:FindFirstChild("ContentArea")
 					local tokenSection = musicPanel:FindFirstChild("TokenSection")
@@ -234,7 +225,7 @@ local function makeSpotifyRequest(token, url, method, body)
 					
 					if contentArea then contentArea.Visible = false end
 					if tokenSection then tokenSection.Visible = true end
-					if glowFrame then glowFrame.Visible = false end -- Hide glow on reset
+					if glowFrame then glowFrame.Visible = false end
 				end
 			end
 			return nil
@@ -317,7 +308,6 @@ local function getPlaylistTracks(token, playlistId)
 	return data.items
 end
 
--- Spotify Playback Controls
 local function spotifyPrevious()
 	makeSpotifyRequest(userToken, "me/player/previous", "POST")
 end
@@ -351,16 +341,13 @@ local function spotifyPlayTrack(uri)
 	makeSpotifyRequest(userToken, "me/player/play", "PUT", body)
 end
 
--- Dynamic Island (Apple-style mini player)
-local dynamicIslandConnection -- Track connection to prevent duplicates
+local dynamicIslandConnection
 
 local function createDynamicIsland()
-	-- Clean up existing
 	local guiParent = gethui and gethui() or game:GetService("CoreGui")
 	local existingGui = guiParent:FindFirstChild("SiriusDynamicIslandGui")
 	if existingGui then existingGui:Destroy() end
 	
-	-- Disconnect previous loop if it exists
 	if dynamicIslandConnection then
 		dynamicIslandConnection:Disconnect()
 		dynamicIslandConnection = nil
@@ -372,7 +359,6 @@ local function createDynamicIsland()
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	screenGui.Parent = guiParent
 
-	-- Initialize local state for progress tracking
 	local localState = {
 		isPlaying = false,
 		duration = 0,
@@ -424,7 +410,7 @@ local function createDynamicIsland()
 	dynamicIsland.BackgroundColor3 = Color3.new(0, 0, 0)
 	dynamicIsland.BackgroundTransparency = 0.06
 	dynamicIsland.ClipsDescendants = true
-	dynamicIsland.Visible = false -- Hidden by default
+	dynamicIsland.Visible = false
 	dynamicIsland.ZIndex = 1000
 	dynamicIsland.Parent = screenGui
 
@@ -436,7 +422,6 @@ local function createDynamicIsland()
 	uiScale.Scale = 1
 	uiScale.Parent = dynamicIsland
 
-	-- Soft shadow
 	local shadow = Instance.new("ImageLabel")
 	shadow.Name = "Shadow"
 	shadow.BackgroundTransparency = 1
@@ -449,7 +434,6 @@ local function createDynamicIsland()
 	shadow.ZIndex = 999
 	shadow.Parent = dynamicIsland
 
-	-- 1) COMPACT VIEW
 	local compactContainer = Instance.new("CanvasGroup")
 	compactContainer.Name = "CompactContainer"
 	compactContainer.BackgroundTransparency = 1
@@ -472,8 +456,8 @@ local function createDynamicIsland()
 	local compactInfo = Instance.new("Frame")
 	compactInfo.Name = "CompactInfo"
 	compactInfo.AnchorPoint = Vector2.new(0, 0.5)
-	compactInfo.Position = UDim2.new(0, 60, 0.5, 0) -- More spacing
-	compactInfo.Size = UDim2.new(1, -120, 1, 0) -- Reduced width to avoid overlap with logo
+	compactInfo.Position = UDim2.new(0, 60, 0.5, 0)
+	compactInfo.Size = UDim2.new(1, -120, 1, 0)
 	compactInfo.BackgroundTransparency = 1
 	compactInfo.Parent = compactContainer
 
@@ -487,7 +471,7 @@ local function createDynamicIsland()
 	compactTitle.TextColor3 = Color3.new(1, 1, 1)
 	compactTitle.TextSize = 14
 	compactTitle.TextXAlignment = Enum.TextXAlignment.Left
-	compactTitle.TextTruncate = Enum.TextTruncate.AtEnd -- Ensure truncation
+	compactTitle.TextTruncate = Enum.TextTruncate.AtEnd
 	compactTitle.Parent = compactInfo
 
 	local compactArtist = Instance.new("TextLabel")
@@ -500,31 +484,29 @@ local function createDynamicIsland()
 	compactArtist.TextColor3 = Color3.fromRGB(180, 180, 180)
 	compactArtist.TextSize = 12
 	compactArtist.TextXAlignment = Enum.TextXAlignment.Left
-	compactArtist.TextTruncate = Enum.TextTruncate.AtEnd -- Ensure truncation
+	compactArtist.TextTruncate = Enum.TextTruncate.AtEnd
 	compactArtist.Parent = compactInfo
 
 	local compactLogo = Instance.new("ImageLabel")
 	compactLogo.Name = "CompactLogo"
 	compactLogo.AnchorPoint = Vector2.new(1, 0.5)
 	compactLogo.Position = UDim2.new(1, -12, 0.5, 0)
-	compactLogo.Size = UDim2.fromOffset(24, 24) -- Slightly bigger
+	compactLogo.Size = UDim2.fromOffset(24, 24)
 	compactLogo.BackgroundTransparency = 1
-	compactLogo.Image = "rbxassetid://9622474485" -- Spotify Logo
+	compactLogo.Image = "rbxassetid://9622474485"
 	compactLogo.Parent = compactContainer
 
-	-- 2) EXPANDED VIEW
 	local expandedContainer = Instance.new("CanvasGroup")
 	expandedContainer.Name = "ExpandedContainer"
 	expandedContainer.BackgroundTransparency = 1
 	expandedContainer.GroupTransparency = 1
 	expandedContainer.Size = UDim2.new(1, 0, 1, 0)
 	expandedContainer.Visible = true
-	-- Hitbox for easier interaction
 	local hitbox = Instance.new("Frame")
 	hitbox.Name = "Hitbox"
 	hitbox.AnchorPoint = Vector2.new(0.5, 0)
-	hitbox.Position = UDim2.new(0.5, 0, 0, 0) -- Top of screen
-	hitbox.Size = UDim2.new(0, 500, 0, 250) -- Generous Hitbox
+	hitbox.Position = UDim2.new(0.5, 0, 0, 0)
+	hitbox.Size = UDim2.new(0, 500, 0, 250)
 	hitbox.BackgroundTransparency = 1
 	hitbox.ZIndex = 999
 	hitbox.Parent = screenGui
@@ -534,16 +516,15 @@ local function createDynamicIsland()
 	local expandedLogo = Instance.new("ImageLabel")
 	expandedLogo.Name = "ExpandedLogo"
 	expandedLogo.AnchorPoint = Vector2.new(1, 0)
-	expandedLogo.Position = UDim2.new(1, -20, 0, 20) -- Top Right
+	expandedLogo.Position = UDim2.new(1, -20, 0, 20)
 	expandedLogo.Size = UDim2.fromOffset(24, 24)
 	expandedLogo.BackgroundTransparency = 1
-	expandedLogo.Image = "rbxassetid://9622474485" -- Spotify Logo
+	expandedLogo.Image = "rbxassetid://9622474485"
 	expandedLogo.Parent = expandedContainer
 
-	-- Update Art Position (Old Layout: Top Left)
 	local expandedArt = Instance.new("ImageLabel")
 	expandedArt.Name = "ExpandedArt"
-	expandedArt.Position = UDim2.new(0, 20, 0, 20) -- Matched oldSirius
+	expandedArt.Position = UDim2.new(0, 20, 0, 20)
 	expandedArt.Size = UDim2.fromOffset(60, 60)
 	expandedArt.BackgroundTransparency = 1
 	expandedArt.Image = ""
@@ -553,7 +534,7 @@ local function createDynamicIsland()
 
 	local expandedInfo = Instance.new("Frame")
 	expandedInfo.Name = "ExpandedInfo"
-	expandedInfo.Position = UDim2.new(0, 95, 0, 20) -- Matched oldSirius
+	expandedInfo.Position = UDim2.new(0, 95, 0, 20)
 	expandedInfo.Size = UDim2.new(1, -100, 0, 60)
 	expandedInfo.BackgroundTransparency = 1
 	expandedInfo.Parent = expandedContainer
@@ -566,7 +547,7 @@ local function createDynamicIsland()
 	expandedTitle.Font = Enum.Font.GothamBold
 	expandedTitle.Text = "Not Playing"
 	expandedTitle.TextColor3 = Color3.new(1, 1, 1)
-	expandedTitle.TextSize = 18 -- Restored to 18
+	expandedTitle.TextSize = 18
 	expandedTitle.TextXAlignment = Enum.TextXAlignment.Left
 	expandedTitle.TextTruncate = Enum.TextTruncate.AtEnd
 	expandedTitle.Parent = expandedInfo
@@ -586,16 +567,16 @@ local function createDynamicIsland()
 
 	local progressContainer = Instance.new("Frame")
 	progressContainer.Name = "ProgressContainer"
-	progressContainer.Position = UDim2.new(0, 20, 0, 95) -- Matched oldSirius
+	progressContainer.Position = UDim2.new(0, 20, 0, 95)
 	progressContainer.Size = UDim2.new(1, -40, 0, 20)
 	progressContainer.BackgroundTransparency = 1
 	progressContainer.Parent = expandedContainer
 
 	local progressBarBg = Instance.new("Frame")
 	progressBarBg.Name = "ProgressBarBg"
-	progressBarBg.AnchorPoint = Vector2.new(0.5, 0.5) -- Centered
-	progressBarBg.Position = UDim2.new(0.5, 0, 0.5, 0) -- Centered in container
-	progressBarBg.Size = UDim2.new(1, -70, 0, 4) -- Leave room for text
+	progressBarBg.AnchorPoint = Vector2.new(0.5, 0.5)
+	progressBarBg.Position = UDim2.new(0.5, 0, 0.5, 0)
+	progressBarBg.Size = UDim2.new(1, -70, 0, 4)
 	progressBarBg.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 	progressBarBg.BorderSizePixel = 0
 	progressBarBg.Parent = progressContainer
@@ -609,12 +590,11 @@ local function createDynamicIsland()
 	progressBarFill.Parent = progressBarBg
 	local pbfc = Instance.new("UICorner"); pbfc.CornerRadius = UDim.new(1, 0); pbfc.Parent = progressBarFill
 
-	-- Seeking Functionality
 	local seekBtn = Instance.new("TextButton")
 	seekBtn.Name = "SeekButton"
 	seekBtn.BackgroundTransparency = 1
 	seekBtn.Text = ""
-	seekBtn.Size = UDim2.new(1, 0, 3, 0) -- Larger hit area for easier clicking
+	seekBtn.Size = UDim2.new(1, 0, 3, 0)
 	seekBtn.Position = UDim2.new(0, 0, -1, 0)
 	seekBtn.Parent = progressBarBg
 	
@@ -630,18 +610,16 @@ local function createDynamicIsland()
 		local percentage = relativeX / barAbsSize
 		local seekTime = percentage * localState.duration
 		
-		-- Optimistic Update
 		localState.position = seekTime
 		progressBarFill.Size = UDim2.new(percentage, 0, 1, 0)
 		
-		-- Call API
 		spotifySeek(math.floor(seekTime * 1000))
 	end)
 
 	local timeStart = Instance.new("TextLabel")
 	timeStart.Name = "TimeStart"
 	timeStart.BackgroundTransparency = 1
-	timeStart.Position = UDim2.new(0, 0, 0, 0) -- Matched oldSirius
+	timeStart.Position = UDim2.new(0, 0, 0, 0)
 	timeStart.Size = UDim2.new(0, 30, 1, 0)
 	timeStart.Font = Enum.Font.Gotham
 	timeStart.Text = "0:00"
@@ -654,7 +632,7 @@ local function createDynamicIsland()
 	timeEnd.Name = "TimeEnd"
 	timeEnd.BackgroundTransparency = 1
 	timeEnd.AnchorPoint = Vector2.new(1, 0)
-	timeEnd.Position = UDim2.new(1, 0, 0, 0) -- Matched oldSirius
+	timeEnd.Position = UDim2.new(1, 0, 0, 0)
 	timeEnd.Size = UDim2.new(0, 30, 1, 0)
 	timeEnd.Font = Enum.Font.Gotham
 	timeEnd.Text = "0:00"
@@ -665,12 +643,11 @@ local function createDynamicIsland()
 
 	local controlsContainer = Instance.new("Frame")
 	controlsContainer.Name = "Controls"
-	controlsContainer.Position = UDim2.new(0, 20, 0, 120) -- Matched oldSirius
+	controlsContainer.Position = UDim2.new(0, 20, 0, 120)
 	controlsContainer.Size = UDim2.new(1, -40, 0, 30)
 	controlsContainer.BackgroundTransparency = 1
 	controlsContainer.Parent = expandedContainer
 
-	-- Standard Icons (Reliable)
 	local function makeBtn(name, icon, pos, size, callback)
 		local btn = Instance.new("ImageButton")
 		btn.Name = name
@@ -688,14 +665,12 @@ local function createDynamicIsland()
 		return btn
 	end
 
-	-- Using Standard Roblox Icons to ensure visibility
 	local playBtn = makeBtn("PlayPause", "rbxassetid://136341313090125", UDim2.new(0.5, 0, 0.5, 0), UDim2.fromOffset(32, 32), function()
 		if isPlaying then spotifyPause() else spotifyResume() end
 	end)
 	makeBtn("Prev", "rbxassetid://138415720834412", UDim2.new(0.5, -45, 0.5, 0), UDim2.fromOffset(24, 24), spotifyPrevious)
 	makeBtn("Next", "rbxassetid://88365123525975", UDim2.new(0.5, 45, 0.5, 0), UDim2.fromOffset(24, 24), spotifyNext)
 
-	-- animate 
 	local shapes = {
 		[1] = {
 			width = 400,
@@ -706,8 +681,8 @@ local function createDynamicIsland()
 			expandedTrans = 1,
 		},
 		[2] = {
-			width = 340, -- Matched 
-			height = 160, -- Matche
+			width = 340,
+			height = 160,
 			corner = 32,
 			scale = 1.02,
 			compactTrans = 1,
@@ -719,8 +694,8 @@ local function createDynamicIsland()
 	local heightSpring = Spring.new(1, 17)
 	local cornerSpring = Spring.new(1, 20)
 	local scaleSpring = Spring.new(1, 22)
-	local compactTransSpring = Spring.new(1, 25) -- Faster fade
-	local expandedTransSpring = Spring.new(1, 25) -- Faster fade
+	local compactTransSpring = Spring.new(1, 25)
+	local expandedTransSpring = Spring.new(1, 25)
 
 	widthSpring:SnapTo(400)
 	heightSpring:SnapTo(54)
@@ -730,7 +705,6 @@ local function createDynamicIsland()
 	expandedTransSpring:SnapTo(1)
 
 	local function setShape(state)
-		-- 1 = Compact, 2 = Expanded
 		local s = shapes[state]
 		if not s then return end
 		
@@ -741,22 +715,19 @@ local function createDynamicIsland()
 		compactTransSpring:SetTarget(s.compactTrans)
 		expandedTransSpring:SetTarget(s.expandedTrans)
 		
-		-- Update hitbox size based on state
 		if state == 2 then
-			hitbox.Size = UDim2.new(0, 500, 0, 250) -- Larger when expanded
+			hitbox.Size = UDim2.new(0, 500, 0, 250)
 		else
-			hitbox.Size = UDim2.new(0, 500, 0, 120) -- Generous when compact
+			hitbox.Size = UDim2.new(0, 500, 0, 120)
 		end
 	end
 
-	-- Use Hitbox for interaction
 	hitbox.MouseEnter:Connect(function() setShape(2) end)
 	hitbox.MouseLeave:Connect(function() setShape(1) end)
 
 	dynamicIslandConnection = runService.RenderStepped:Connect(function(dt)
 		if not dynamicIsland or not dynamicIsland.Parent then return end
 		
-		-- Visibility Check
 		local isEnabled = true
 		if siriusValues and siriusValues.settings and siriusValues.settings.dynamicisland ~= nil then
 			isEnabled = siriusValues.settings.dynamicisland
@@ -768,7 +739,6 @@ local function createDynamicIsland()
 			dynamicIsland.Visible = false
 		end
 		
-		-- 1. Update Springs
 		local newWidth = widthSpring:Update(dt)
 		local newHeight = heightSpring:Update(dt)
 		local newCorner = cornerSpring:Update(dt)
@@ -783,18 +753,16 @@ local function createDynamicIsland()
 		expandedContainer.GroupTransparency = newExpandedTrans
 		shadow.Size = UDim2.new(2.0, 0, 3.3, 0)
 		
-		-- 2. Local Progress Interpolation
 		if localState.isPlaying and localState.duration > 0 then
 			local elapsed = tick() - localState.lastUpdate
 			local current = math.clamp(localState.position + elapsed, 0, localState.duration)
 			local ratio = math.clamp(current / localState.duration, 0, 1)
 			
-			-- Look up elements each frame
 			local progCont = dynamicIsland:FindFirstChild("ExpandedContainer")
 			if progCont then
 				progCont = progCont:FindFirstChild("ProgressContainer")
 				if progCont then
-					local barBg = progCont:FindFirstChild("ProgressBarBg") -- Corrected Name
+					local barBg = progCont:FindFirstChild("ProgressBarBg")
 					if barBg then
 						local barFill = barBg:FindFirstChild("BarFill")
 						if barFill then
@@ -814,12 +782,11 @@ local function createDynamicIsland()
 				end
 			end
 		else
-			-- Not playing or invalid duration, reset to 0
 			local progCont = dynamicIsland:FindFirstChild("ExpandedContainer")
 			if progCont then
 				progCont = progCont:FindFirstChild("ProgressContainer")
 				if progCont then
-					local barBg = progCont:FindFirstChild("ProgressBarBg") -- Corrected Name
+					local barBg = progCont:FindFirstChild("ProgressBarBg")
 					if barBg then
 						local barFill = barBg:FindFirstChild("BarFill")
 						if barFill then
@@ -854,7 +821,7 @@ local function createDynamicIsland()
 	end
 
 	dynamicIslandShow = show
-	dynamicIslandState = localState -- Make state accessible globally for updates
+	dynamicIslandState = localState
 end
 
 updateDynamicIsland = function(data)
@@ -862,7 +829,6 @@ updateDynamicIsland = function(data)
 	local show = dynamicIslandShow
 	
 	if data and data.song then
-		-- Update Text
 		local title = data.song.name or "Unknown"
 		local artist = table.concat(data.artistNames, ", ")
 		
@@ -876,8 +842,6 @@ updateDynamicIsland = function(data)
 		if expandedTitle then expandedTitle.Text = title end
 		if expandedArtist then expandedArtist.Text = artist end
 		
-		-- Update Art safely
-		-- Update Album Art (Aggressive Retry)
 		if data.images and data.images.songCover and data.album and data.album.id then
 			task.spawn(function()
 				local folder = "Spotify Cache"
@@ -886,7 +850,6 @@ updateDynamicIsland = function(data)
 				local fileName = data.album.id .. ".jpeg"
 				local path = folder .. "/" .. fileName
 				
-				-- Retry Logic for Download
 				local attempts = 0
 				local success = false
 				
@@ -898,19 +861,17 @@ updateDynamicIsland = function(data)
 							success = true
 						else
 							attempts = attempts + 1
-							task.wait(0.5) -- Wait before retry
+							task.wait(0.5)
 						end
 					else
-						success = true -- File exists
+						success = true
 					end
 				end
 				
-				-- Try to load asset
 				if success and isfile(path) and getcustomasset then
 					local artId = nil
 					local loadAttempts = 0
 					
-					-- Retry loading custom asset
 					while loadAttempts < 3 and not artId do
 						local s, asset = pcall(getcustomasset, path)
 						if s and asset then
@@ -931,15 +892,13 @@ updateDynamicIsland = function(data)
 			end)
 		end
 		
-		-- Update Progress State for Interpolation
 		if data.playback and dynamicIslandState then
 			dynamicIslandState.isPlaying = data.playback.playing
 			if data.playback.total and data.playback.total > 0 then
-				dynamicIslandState.duration = data.playback.total / 1000 -- Convert to seconds
-				dynamicIslandState.position = data.playback.current / 1000 -- Convert to seconds
+				dynamicIslandState.duration = data.playback.total / 1000
+				dynamicIslandState.position = data.playback.current / 1000
 				dynamicIslandState.lastUpdate = tick()
 				
-				-- Force immediate update to prevent 1-frame jump
 				local current = dynamicIslandState.position
 				local ratio = math.clamp(current / dynamicIslandState.duration, 0, 1)
 				local progCont = dynamicIsland:FindFirstChild("ExpandedContainer"):FindFirstChild("ProgressContainer")
@@ -966,15 +925,14 @@ updateDynamicIsland = function(data)
 			end
 		end
 		
-		-- Update Play/Pause Icon
 		local controls = dynamicIsland:FindFirstChild("ExpandedContainer"):FindFirstChild("Controls")
 		if controls then
 			local playBtn = controls:FindFirstChild("PlayPause")
 			if playBtn then
 				if data.playback.playing then
-					playBtn.Image = "rbxassetid://121740587216950" -- Pause (New)
+					playBtn.Image = "rbxassetid://121740587216950"
 				else
-					playBtn.Image = "rbxassetid://136341313090125" -- Play (New)
+					playBtn.Image = "rbxassetid://136341313090125"
 				end
 			end
 		end
@@ -985,7 +943,6 @@ updateDynamicIsland = function(data)
 	end
 end
 
--- UI Animation Helpers
 local function staggerReveal(list)
 	if not list then return end
 	for i, child in ipairs(list:GetChildren()) do
@@ -1017,32 +974,29 @@ local function fadeOutList(list)
 	end
 end
 
--- Build the new Premium Spotify UI (Tablet Size)
 local function buildSpotifyUIInternal()
-	-- Create main music panel with Glassmorphism
 	musicPanel = Instance.new("CanvasGroup")
 	musicPanel.Name = "SpotifyMusicPanel"
-	musicPanel.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Back to Black
+	musicPanel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 	musicPanel.BackgroundTransparency = 0
-	musicPanel.GroupTransparency = 0 -- Start visible (no fade in)
+	musicPanel.GroupTransparency = 0
 	musicPanel.BorderSizePixel = 0
-	musicPanel.ClipsDescendants = true -- CRITICAL: Fixes animation overflow
+	musicPanel.ClipsDescendants = true
 	musicPanel.AnchorPoint = Vector2.new(0.5, 0.5)
-	musicPanel.Position = UDim2.new(0.5, 0, 0.5, 0) -- Center on open
-	musicPanel.Size = UDim2.new(0, 600, 0, 350) -- Tablet Size
+	musicPanel.Position = UDim2.new(0.5, 0, 0.5, 0)
+	musicPanel.Size = UDim2.new(0, 600, 0, 350)
 	musicPanel.Visible = false
 	musicPanel.ZIndex = 100
 	
-	-- Glow Frame (Separate Overlay)
 	local glowFrame = Instance.new("Frame")
 	glowFrame.Name = "GlowFrame"
 	glowFrame.Size = UDim2.new(1, 0, 1, 0)
 	glowFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	glowFrame.BackgroundTransparency = 0 -- Must be 0 for UIGradient to show
+	glowFrame.BackgroundTransparency = 0
 	glowFrame.BorderSizePixel = 0
-	glowFrame.ClipsDescendants = true -- Keep glow inside rounded bounds 
-	glowFrame.Visible = false -- Hidden by default (Only for TrackList)
-	glowFrame.ZIndex = 101 -- Behind content
+	glowFrame.ClipsDescendants = true
+	glowFrame.Visible = false
+	glowFrame.ZIndex = 101
 	glowFrame.Parent = musicPanel
 
 	local glowCorner = Instance.new("UICorner")
@@ -1051,21 +1005,20 @@ local function buildSpotifyUIInternal()
 	
 	local uiGradient = Instance.new("UIGradient")
 	uiGradient.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 20, 20)), -- Deep Black/Midnight
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 20, 20)),
 		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0))
 	})
 	uiGradient.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.9), -- Much softer glow
-		NumberSequenceKeypoint.new(1, 1) -- Fade out to top
+		NumberSequenceKeypoint.new(0, 0.9),
+		NumberSequenceKeypoint.new(1, 1)
 	})
-	uiGradient.Rotation = 85 -- Diagonal sweep to match Settings light direction
-	uiGradient.Offset = Vector2.new(0, 1.5) -- Start lower
+	uiGradient.Rotation = 85
+	uiGradient.Offset = Vector2.new(0, 1.5)
 	uiGradient.Parent = glowFrame
 	
 	musicPanel.Parent = UI
 	createDynamicIsland()
 
-	-- Premium Gradient Background
 	local uiGradient = Instance.new("UIGradient")
 	uiGradient.Color = ColorSequence.new{
 		ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0)),
@@ -1074,25 +1027,22 @@ local function buildSpotifyUIInternal()
 	uiGradient.Rotation = 45
 	uiGradient.Parent = musicPanel
 
-	-- Minimal Shadow (Barely Visible)
 	local shadow = Instance.new("ImageLabel")
 	shadow.Name = "Shadow"
 	shadow.AnchorPoint = Vector2.new(0.5, 0.5)
 	shadow.BackgroundTransparency = 1
 	shadow.Position = UDim2.new(0.5, 0, 0.5, 5)
-	shadow.Size = UDim2.new(1, 40, 1, 40) -- Much smaller shadow
+	shadow.Size = UDim2.new(1, 40, 1, 40)
 	shadow.ZIndex = 99
 	shadow.Image = "rbxassetid://6015897843"
 	shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-	shadow.ImageTransparency = 0.7 -- Match subtlety of Settings
+	shadow.ImageTransparency = 0.7
 	shadow.Parent = musicPanel
 
-	-- Rounded Corners
 	local uiCorner = Instance.new("UICorner")
-	uiCorner.CornerRadius = UDim.new(0, 9) -- Sharper to match Settings
+	uiCorner.CornerRadius = UDim.new(0, 9)
 	uiCorner.Parent = musicPanel
 
-	-- Loading Overlay (Hidden by default)
 	local loadingOverlay = Instance.new("Frame")
 	loadingOverlay.Name = "LoadingOverlay"
 	loadingOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -1112,16 +1062,15 @@ local function buildSpotifyUIInternal()
 	loadingIcon.BackgroundTransparency = 1
 	loadingIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
 	loadingIcon.Size = UDim2.new(0, 40, 0, 40)
-	loadingIcon.Image = "rbxassetid://3570695787" -- Circle loading icon
+	loadingIcon.Image = "rbxassetid://3570695787"
 	loadingIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
 	loadingIcon.ZIndex = 201
 	loadingIcon.Parent = loadingOverlay
 
-	-- Header Section
 	local header = Instance.new("Frame")
 	header.Name = "Header"
 	header.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-	header.BackgroundTransparency = 1 -- Changed to 1 to match Settings style (cleaner)
+	header.BackgroundTransparency = 1
 	header.BorderSizePixel = 0
 	header.Size = UDim2.new(1, 0, 0, 60)
 	header.ZIndex = 101
@@ -1140,7 +1089,6 @@ local function buildSpotifyUIInternal()
 	headerFix.ZIndex = 101
 	headerFix.Parent = header
 
-	-- Spotify Logo
 	local logo = Instance.new("ImageLabel")
 	logo.Name = "Logo"
 	logo.BackgroundTransparency = 1
@@ -1150,21 +1098,19 @@ local function buildSpotifyUIInternal()
 	logo.ZIndex = 102
 	logo.Parent = header
 
-	-- Title Label
 	local titleLabel = Instance.new("TextLabel")
 	titleLabel.Name = "TitleLabel"
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Position = UDim2.new(0, 60, 0, 10)
 	titleLabel.Size = UDim2.new(0, 200, 0, 25)
 	titleLabel.Font = Enum.Font.GothamBold
-	titleLabel.Text = "Spotify" -- Changed from Spotify Premium
+	titleLabel.Text = "Spotify"
 	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 	titleLabel.TextSize = 18
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 	titleLabel.ZIndex = 102
 	titleLabel.Parent = header
 
-	-- Subtitle
 	local subtitle = Instance.new("TextLabel")
 	subtitle.Name = "Subtitle"
 	subtitle.BackgroundTransparency = 1
@@ -1178,7 +1124,6 @@ local function buildSpotifyUIInternal()
 	subtitle.ZIndex = 102
 	subtitle.Parent = header
 
-	-- Token Input Section
 	local tokenSection = Instance.new("Frame")
 	tokenSection.Name = "TokenSection"
 	tokenSection.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
@@ -1209,7 +1154,7 @@ local function buildSpotifyUIInternal()
 	local tokenInput = Instance.new("TextBox")
 	tokenInput.Name = "TokenInput"
 	tokenInput.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-	tokenInput.Position = UDim2.new(0.5, 0, 0.5, -20) -- Centered properly
+	tokenInput.Position = UDim2.new(0.5, 0, 0.5, -20)
 	tokenInput.AnchorPoint = Vector2.new(0.5, 0.5)
 	tokenInput.Size = UDim2.new(0, 360, 0, 45)
 	tokenInput.Font = Enum.Font.Gotham
@@ -1218,7 +1163,7 @@ local function buildSpotifyUIInternal()
 	tokenInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 	tokenInput.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
 	tokenInput.TextSize = 14
-	tokenInput.TextXAlignment = Enum.TextXAlignment.Center -- Centered text
+	tokenInput.TextXAlignment = Enum.TextXAlignment.Center
 	tokenInput.ClearTextOnFocus = false
 	tokenInput.ZIndex = 102
 	tokenInput.Parent = tokenSection
@@ -1235,11 +1180,11 @@ local function buildSpotifyUIInternal()
 	local submitButton = Instance.new("TextButton")
 	submitButton.Name = "SubmitButton"
 	submitButton.BackgroundColor3 = Color3.fromRGB(30, 215, 96)
-	submitButton.Position = UDim2.new(0.5, 0, 0.5, 45) -- Below input
+	submitButton.Position = UDim2.new(0.5, 0, 0.5, 45)
 	submitButton.AnchorPoint = Vector2.new(0.5, 0.5)
 	submitButton.Size = UDim2.new(0, 120, 0, 35)
 	submitButton.Font = Enum.Font.GothamBold
-	submitButton.Text = "Connect" -- Changed from CONNECT
+	submitButton.Text = "Connect"
 	submitButton.TextColor3 = Color3.fromRGB(0, 0, 0)
 	submitButton.TextSize = 13
 	submitButton.ZIndex = 102
@@ -1271,10 +1216,8 @@ local function buildSpotifyUIInternal()
 	howButton.Parent = tokenSection
 	
 	howButton.MouseButton1Click:Connect(function()
-		-- Placeholder for future "How to get token" tutorial
 	end)
 
-	-- Content Area
 	local contentArea = Instance.new("Frame")
 	contentArea.Name = "ContentArea"
 	contentArea.BackgroundTransparency = 1
@@ -1284,7 +1227,6 @@ local function buildSpotifyUIInternal()
 	contentArea.ZIndex = 101
 	contentArea.Parent = musicPanel
 
-	-- Playlist Browser
 	playlistBrowser = Instance.new("ScrollingFrame")
 	playlistBrowser.Name = "PlaylistBrowser"
 	playlistBrowser.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
@@ -1318,7 +1260,6 @@ local function buildSpotifyUIInternal()
 		playlistBrowser.CanvasSize = UDim2.new(0, 0, 0, browserLayout.AbsoluteContentSize.Y + 20)
 	end)
 
-	-- Now Playing
 	local nowPlaying = Instance.new("Frame")
 	nowPlaying.Name = "NowPlaying"
 	nowPlaying.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
@@ -1333,16 +1274,14 @@ local function buildSpotifyUIInternal()
 	nowPlayingCorner.CornerRadius = UDim.new(0, 12)
 	nowPlayingCorner.Parent = nowPlaying
 
-	-- Clear existing children to prevent duplicates/ghosts
 	for _, child in ipairs(nowPlaying:GetChildren()) do
 		if child:IsA("GuiObject") then child:Destroy() end
 	end
 
-	-- Album Art Container (Centered, Smaller)
 	local artContainer = Instance.new("Frame")
 	artContainer.Name = "ArtContainer"
 	artContainer.BackgroundTransparency = 1
-	artContainer.Position = UDim2.new(0.5, -75, 0.5, -100) -- 150x150, centered, shifted up
+	artContainer.Position = UDim2.new(0.5, -75, 0.5, -100)
 	artContainer.Size = UDim2.new(0, 150, 0, 150)
 	artContainer.ZIndex = 103
 	artContainer.Parent = nowPlaying
@@ -1360,16 +1299,15 @@ local function buildSpotifyUIInternal()
 	artCorner.Parent = albumArt
 
 
-	-- Song Info (Centered below art)
 	local songTitle = Instance.new("TextLabel")
 	songTitle.Name = "SongTitle"
 	songTitle.BackgroundTransparency = 1
-	songTitle.Position = UDim2.new(0, 20, 0.5, 65) -- Below art
+	songTitle.Position = UDim2.new(0, 20, 0.5, 65)
 	songTitle.Size = UDim2.new(1, -40, 0, 30)
 	songTitle.Font = Enum.Font.GothamBold
 	songTitle.Text = "No song playing"
 	songTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-	songTitle.TextSize = 20 -- Slightly smaller
+	songTitle.TextSize = 20
 	songTitle.TextXAlignment = Enum.TextXAlignment.Center
 	songTitle.TextTruncate = Enum.TextTruncate.AtEnd
 	songTitle.ZIndex = 103
@@ -1378,12 +1316,12 @@ local function buildSpotifyUIInternal()
 	local artistName = Instance.new("TextLabel")
 	artistName.Name = "ArtistName"
 	artistName.BackgroundTransparency = 1
-	artistName.Position = UDim2.new(0, 20, 0.5, 90) -- Below title
+	artistName.Position = UDim2.new(0, 20, 0.5, 90)
 	artistName.Size = UDim2.new(1, -40, 0, 20)
 	artistName.Font = Enum.Font.GothamMedium
 	artistName.Text = "Start playing on Spotify..."
 	artistName.TextColor3 = Color3.fromRGB(180, 180, 180)
-	artistName.TextSize = 14 -- Slightly smaller
+	artistName.TextSize = 14
 	artistName.TextXAlignment = Enum.TextXAlignment.Center
 	artistName.TextTruncate = Enum.TextTruncate.AtEnd
 	artistName.ZIndex = 103
@@ -1393,7 +1331,6 @@ local function buildSpotifyUIInternal()
 
 
 	local function loadPlaylists()
-		-- Clear existing playlists to prevent duplication
 		for _, child in ipairs(playlistBrowser:GetChildren()) do
 			if child:IsA("GuiObject") then child:Destroy() end
 		end
@@ -1455,7 +1392,6 @@ local function buildSpotifyUIInternal()
 					end)
 
 					playlistButton.MouseButton1Click:Connect(function()
-						-- 1. Create TrackList if missing
 						local trackList = musicPanel.ContentArea:FindFirstChild("TrackList")
 						if not trackList then
 							trackList = Instance.new("ScrollingFrame")
@@ -1477,31 +1413,27 @@ local function buildSpotifyUIInternal()
 							end)
 						end
 						
-						-- 2. Switch View (Instant + Glow)
 						local playlistBrowser = musicPanel.ContentArea:FindFirstChild("PlaylistBrowser")
 						local nowPlaying = musicPanel.ContentArea:FindFirstChild("NowPlaying")
 						
-						-- Instant Hide
 						if playlistBrowser then playlistBrowser.Visible = false end
 						if nowPlaying then nowPlaying.Visible = false end
 						
-						-- Animate Glow (Slide Up)
 						local glowFrame = musicPanel:FindFirstChild("GlowFrame")
 						local gradient = glowFrame and glowFrame:FindFirstChild("UIGradient")
 						if glowFrame and gradient then
-							glowFrame.Visible = true -- Show glow ONLY now
+							glowFrame.Visible = true
 							tweenService:Create(gradient, TweenInfo.new(0.6, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Offset = Vector2.new(0, 0.9)}):Play()
 						end
 						
-						-- Prepare TrackList
 						local oldTrackList = musicPanel.ContentArea:FindFirstChild("TrackList")
 						if oldTrackList then oldTrackList:Destroy() end
 						
 						local trackList = Instance.new("ScrollingFrame")
 						trackList.Name = "TrackList"
 						trackList.BackgroundTransparency = 1
-						trackList.Size = UDim2.new(1, -40, 1, -50) -- Taller (More space)
-						trackList.Position = UDim2.new(0, 20, 0, 50) -- Moved Up
+						trackList.Size = UDim2.new(1, -40, 1, -50)
+						trackList.Position = UDim2.new(0, 20, 0, 50)
 						trackList.ScrollBarThickness = 2
 						trackList.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 80)
 						trackList.BorderSizePixel = 0
@@ -1518,7 +1450,6 @@ local function buildSpotifyUIInternal()
 							trackList.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
 						end)
 						
-						-- Enable Smooth Scroll
 						enableSmoothScroll(trackList)
 
 						local function staggerReveal(container, delayStep)
@@ -1574,23 +1505,21 @@ local function buildSpotifyUIInternal()
 							end
 						end
 						
-						-- 4. Add Back Button (Chevron Left - Settings Style)
-						local backArrowImage = "rbxassetid://6031090991" -- Solid left arrow (reliable Roblox asset)
+						local backArrowImage = "rbxassetid://6031090991"
 
 						local backBtn = Instance.new("ImageButton")
 						backBtn.Name = "Back"
-						backBtn.Size = UDim2.new(0, 24, 0, 24) -- Standard Size
+						backBtn.Size = UDim2.new(0, 24, 0, 24)
 						backBtn.BackgroundTransparency = 1
-						backBtn.Image = backArrowImage -- Match Settings arrow
+						backBtn.Image = backArrowImage
 						backBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
 						backBtn.ScaleType = Enum.ScaleType.Fit
-						backBtn.Rotation = 90 -- Rotate to point left instead of down
-						backBtn.Position = UDim2.new(0, -12, 0, 18) -- Start offscreen
-						backBtn.ImageTransparency = 1 -- Fade in
+						backBtn.Rotation = 90
+						backBtn.Position = UDim2.new(0, -12, 0, 18)
+						backBtn.ImageTransparency = 1
 						backBtn.ZIndex = 205
 						backBtn.Parent = musicPanel.ContentArea
 
-						-- Slide/Fade in (no slide out)
 						tweenService:Create(backBtn, TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
 							Position = UDim2.new(0, 25, 0, 18),
 							ImageTransparency = 0
@@ -1617,8 +1546,6 @@ local function buildSpotifyUIInternal()
 							if nowPlaying then nowPlaying.Visible = true end
 						end)
 						
-						-- 5. Load Tracks
-						-- queueNotification("Loading Playlist", "Fetching tracks...", 9622474485) -- Removed spam
 						local tracks = getPlaylistTracks(userToken, playlist.id)
 						if typeof(tracks) ~= "table" then
 							queueNotification("Spotify Error", "Couldn't load tracks for this playlist.", 9622474485)
@@ -1629,15 +1556,14 @@ local function buildSpotifyUIInternal()
 							if item.track then
 								local trackBtn = Instance.new("TextButton")
 								trackBtn.Name = "Track"
-								trackBtn.Size = UDim2.new(1, 0, 0, 60) -- Taller for album art
+								trackBtn.Size = UDim2.new(1, 0, 0, 60)
 								trackBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 								trackBtn.BackgroundTransparency = 0.6
 								trackBtn.Text = ""
-								trackBtn.AutoButtonColor = false -- Disable default click color
+								trackBtn.AutoButtonColor = false
 								trackBtn.ZIndex = 201
 								trackBtn.Parent = trackList
 								
-								-- Subtle Hover Effect
 								trackBtn.MouseEnter:Connect(function()
 									tweenService:Create(trackBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
 								end)
@@ -1649,10 +1575,9 @@ local function buildSpotifyUIInternal()
 								trackCorner.CornerRadius = UDim.new(0, 6)
 								trackCorner.Parent = trackBtn
 								
-								-- Album Art
 								local art = Instance.new("ImageLabel")
 								art.Name = "Art"
-								art.Position = UDim2.new(0, 8, 0.5, -22) -- Centered vertically
+								art.Position = UDim2.new(0, 8, 0.5, -22)
 								art.Size = UDim2.new(0, 44, 0, 44)
 								art.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 								art.BackgroundTransparency = 1
@@ -1663,10 +1588,8 @@ local function buildSpotifyUIInternal()
 								artCorner.CornerRadius = UDim.new(0, 4)
 								artCorner.Parent = art
 								
-								-- Load Image Async
 								task.spawn(function()
 									if item.track.album and item.track.album.images and #item.track.album.images > 0 then
-										-- Use smallest image (usually last) for list performance
 										local imgData = item.track.album.images[#item.track.album.images]
 										if imgData then
 											local imgUrl = imgData.url
@@ -1686,7 +1609,7 @@ local function buildSpotifyUIInternal()
 								
 								local title = Instance.new("TextLabel")
 								title.BackgroundTransparency = 1
-								title.Position = UDim2.new(0, 60, 0, 10) -- Shifted right
+								title.Position = UDim2.new(0, 60, 0, 10)
 								title.Size = UDim2.new(1, -70, 0, 20)
 								title.Font = Enum.Font.GothamBold
 								title.Text = item.track.name
@@ -1699,7 +1622,7 @@ local function buildSpotifyUIInternal()
 								
 								local artist = Instance.new("TextLabel")
 								artist.BackgroundTransparency = 1
-								artist.Position = UDim2.new(0, 60, 0, 32) -- Shifted right and down
+								artist.Position = UDim2.new(0, 60, 0, 32)
 								artist.Size = UDim2.new(1, -70, 0, 15)
 								artist.Font = Enum.Font.Gotham
 								artist.Text = item.track.artists[1].name
@@ -1723,7 +1646,6 @@ local function buildSpotifyUIInternal()
 		end)
 	end
 
-	-- Submit Logic
 	submitButton.MouseButton1Click:Connect(function()
 		local token = tokenInput.Text
 		if token ~= "" then
@@ -1731,10 +1653,8 @@ local function buildSpotifyUIInternal()
 				userToken = token
 				queueNotification("Spotify Connected", "Successfully connected to Spotify!", 9622474485)
 				
-				-- Start Update Loop
 				startSpotifyUpdateLoop()
 
-				-- Fade out token section
 				tweenService:Create(tokenSection, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
 				for _, child in ipairs(tokenSection:GetChildren()) do
 					if child:IsA("GuiObject") then
@@ -1744,14 +1664,13 @@ local function buildSpotifyUIInternal()
 						elseif child:IsA("ImageLabel") or child:IsA("ImageButton") then
 							props.ImageTransparency = 1
 						end
-						tweenService:Create(child, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play() -- Base
-						tweenService:Create(child, TweenInfo.new(0.5), props):Play() -- Specifics
+						tweenService:Create(child, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+						tweenService:Create(child, TweenInfo.new(0.5), props):Play()
 					end
 				end
 				task.wait(0.5)
 				tokenSection.Visible = false
 				
-				-- Fade in content
 				contentArea.Visible = true
 				for _, child in ipairs(contentArea:GetChildren()) do
 					if child:IsA("GuiObject") then
@@ -1760,24 +1679,20 @@ local function buildSpotifyUIInternal()
 					end
 				end
 
-				-- Load playlists
 				loadPlaylists()
 
 			else
-				-- rotationTween:Cancel()
 				loadingOverlay.Visible = false
 				queueNotification("Spotify Error", "Invalid token. Please check and try again.", 9622474485)
 			end
 		end
 	end)
 
-	-- Auto-Login Check
 	if userToken and checkSpotifyToken(userToken) then
 		tokenSection.Visible = false
 		contentArea.Visible = true
-		contentArea.BackgroundTransparency = 0.5 -- Ensure it's visible
+		contentArea.BackgroundTransparency = 0.5
 		
-		-- Ensure children are visible
 		for _, child in ipairs(contentArea:GetChildren()) do
 			if child:IsA("GuiObject") then
 				child.BackgroundTransparency = 0.5
@@ -1795,7 +1710,6 @@ local function buildSpotifyUIInternal()
 
 end
 
--- Update Spotify UI with current playback
 local function updateSpotifyUI(data)
 	if not musicPanel or not musicPanel:FindFirstChild("ContentArea") then return end
 
@@ -1806,13 +1720,10 @@ local function updateSpotifyUI(data)
 	end
 
 	if data then
-		-- Debug Notification (Temporary)
-		-- queueNotification("Spotify Debug", "Got data: " .. data.song.name, 9622474485)
 		
 		nowPlaying.SongTitle.Text = data.song.name
 		nowPlaying.ArtistName.Text = table.concat(data.artistNames, ", ")
 
-		-- Update album art if available
 		if getcustomasset and data.images.songCover then
 			task.spawn(function()
 				local folder = "Spotify Cache"
@@ -1864,11 +1775,8 @@ startSpotifyUpdateLoop = function()
 end
 
 stopSpotifyUpdateLoop = function()
-	-- The loop checks userToken, so setting it to nil stops it effectively.
-	-- Or we can cancel the task if we track it properly.
 end
 
--- Module Init
 function SiriusSpotify.init(env)
 	httpService = env.httpService
 	httpRequest = env.httpRequest
@@ -1899,7 +1807,7 @@ end
 function SiriusSpotify.buildSpotifyUI()
 	buildSpotifyUIInternal()
 	if musicPanel then
-		musicPanel.Visible = false -- Keep hidden until button click
+		musicPanel.Visible = false
 		musicPanel.GroupTransparency = 1
 	end
 end
