@@ -1127,7 +1127,7 @@ local function buildSpotifyUIInternal()
 	local tokenSection = Instance.new("Frame")
 	tokenSection.Name = "TokenSection"
 	tokenSection.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-	tokenSection.BackgroundTransparency = 0.5
+	tokenSection.BackgroundTransparency = 0
 	tokenSection.BorderSizePixel = 0
 	tokenSection.Position = UDim2.new(0, 20, 0, 80)
 	tokenSection.Size = UDim2.new(1, -40, 1, -100)
@@ -1808,7 +1808,7 @@ function SiriusSpotify.buildSpotifyUI()
 	buildSpotifyUIInternal()
 	if musicPanel then
 		musicPanel.Visible = false
-		musicPanel.GroupTransparency = 1
+		musicPanel.GroupTransparency = 0
 	end
 end
 
