@@ -1139,7 +1139,7 @@ local function buildSpotifyUIInternal()
 
 	local tokenSection = Instance.new("Frame")
 	tokenSection.Name = "TokenSection"
-	tokenSection.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+	tokenSection.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 	tokenSection.BackgroundTransparency = 0
 	tokenSection.BorderSizePixel = 0
 	tokenSection.Position = UDim2.new(0, 20, 0, 80)
