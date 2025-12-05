@@ -2757,13 +2757,6 @@ local siriusSettings = {
 				id = 'antispam'
 			},
 			{
-				name = 'Clear Chat on Spam',
-				description = 'Automatically issue /clear when spam is detected to flush the chat window.',
-				settingType = 'Boolean',
-				current = false,
-				id = 'clearonspam'
-			},
-			{
 				name = 'Auto-Report Spam',
 				description = 'Automatically submit a Roblox report for spam/scam when detected.',
 				settingType = 'Boolean',
@@ -3768,32 +3761,8 @@ local function openSpotifyPanel()
 	end
 	spotifyPanelOpen = true
 	panel.Visible = true
-	panel.GroupTransparency = 1
-	panel.Size = UDim2.new(0, 550, 0, 310)
-
-	local tokenSection = panel:FindFirstChild("TokenSection")
-	local contentArea = panel:FindFirstChild("ContentArea")
-	local inputElements = {}
-
-	if tokenSection then
-		local submitButton = tokenSection:FindFirstChild("SubmitButton")
-		local tokenInput = tokenSection:FindFirstChild("TokenInput")
-		local howButton = tokenSection:FindFirstChild("HowButton")
-		if submitButton then table.insert(inputElements, submitButton) end
-		if tokenInput then table.insert(inputElements, tokenInput) end
-		if howButton then table.insert(inputElements, howButton) end
-	end
-
-	for _, element in ipairs(inputElements) do
-		element.Visible = false
-		if element:IsA("TextButton") or element:IsA("TextBox") then
-			element.BackgroundTransparency = 1
-			element.TextTransparency = 1
-		end
-	end
-
-	tweenService:Create(panel, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, 600, 0, 350)}):Play()
-	tweenService:Create(panel, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {GroupTransparency = 0}):Play()
+	panel.GroupTransparency = 0
+	panel.Size = UDim2.new(0, 600, 0, 350)
 
 	local module = SiriusSpotifyModule or _G.SiriusSpotifyModule
 	local isAuthenticated = module and module.isAuthenticated and module.isAuthenticated()
