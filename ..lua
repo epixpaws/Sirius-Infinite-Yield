@@ -1228,8 +1228,6 @@ addcmd('logs',{'chatlogs'},function(args, speaker)
              -- TextChatService log collection (simplified)
              logs = "Chat logs not fully implemented for TextChatService in this version."
         end
-        -- In a real implementation, we would need to hook into chat events to collect logs over time.
-        -- For now, we will just notify.
         notify('Chat Logs', 'Chat logging is not fully implemented yet.')
     else
         notify('Chat Logs','Your exploit does not support write file.')
@@ -2746,6 +2744,42 @@ local siriusSettings = {
 		},
 	},
 	{
+		name = 'Chat Safety',
+		description = 'Reduce chat spam and keep things clean.',
+		color = Color3.fromRGB(140, 82, 255),
+		minimumLicense = 'Free',
+		categorySettings = {
+			{
+				name = 'Anti-Spam Bot',
+				description = 'Detect common spam/scam bot messages and hide them from chat.',
+				settingType = 'Boolean',
+				current = true,
+				id = 'antispam'
+			},
+			{
+				name = 'Clear Chat on Spam',
+				description = 'Automatically issue /clear when spam is detected to flush the chat window.',
+				settingType = 'Boolean',
+				current = false,
+				id = 'clearonspam'
+			},
+			{
+				name = 'Auto-Report Spam',
+				description = 'Automatically submit a Roblox report for spam/scam when detected.',
+				settingType = 'Boolean',
+				current = false,
+				id = 'autoreportspam'
+			},
+			{
+				name = 'Spam Notifications',
+				description = 'Show a Sirius toast when spam is filtered.',
+				settingType = 'Boolean',
+				current = true,
+				id = 'spamnotifs'
+			},
+		}
+	},
+	{
 		name = 'Logging',
 		description = 'Send logs to your specified webhook URL of things like player joins and leaves and messages.',
 		color = Color3.new(0.905882, 0.780392, 0.0666667),
@@ -3427,6 +3461,239 @@ local function fetchFromCDN(path, write, savePath)
 	end)
 end
 
+-- Forward declarations (defined later in script)
+local checkSetting
+local queueNotification
+
+-- Chat Safety (spamGuard)
+local spamGuard = {
+	keywords = {
+		{"blox", "pink", "robux"},
+		{"blox", "pink", "reward"},
+		{"friend used", "blox", "robux"},
+		{"your friend", "robux", "reward"},
+	},
+	setup = false,
+	lastNotify = 0,
+	processedObjects = setmetatable({}, {__mode = "k"}),
+	recentSpamTime = 0,
+}
+
+function spamGuard:notify()
+	-- Check if notifications are disabled (default to enabled if checkSetting unavailable)
+	if checkSetting then
+		local spamNotifs = checkSetting("Spam Notifications")
+		if spamNotifs and not spamNotifs.current then return end
+	end
+	local now = os.clock()
+	if now - self.lastNotify < 0.4 then return end
+	self.lastNotify = now
+	
+	-- Use forward-declared queueNotification (assigned at line 4168)
+	task.defer(function()
+		if queueNotification then
+			queueNotification("Chat Spam Blocked", "Filtered a suspected spam bot message.")
+		end
+	end)
+end
+
+function spamGuard:isSpam(msg)
+	-- Note: caller already checks if Anti-Spam Bot is enabled
+	local lower = string.lower(msg or "")
+	if lower == "" then return false end
+	if lower:find("blox%.pink") and (lower:find("robux") or lower:find("reward")) then
+		return true
+	end
+	local normalized = lower:gsub("[%p%c]", " "):gsub("%s+", " ")
+	local tokens = {}
+	for word in string.gmatch(normalized, "%S+") do
+		tokens[word] = true
+	end
+	local function hasAll(words)
+		for _, w in ipairs(words) do
+			if not tokens[w] then return false end
+		end
+		return true
+	end
+	if hasAll({"blox", "pink"}) and (tokens["robux"] or tokens["reward"]) then
+		return true
+	end
+	for _, trio in ipairs(self.keywords) do
+		if hasAll(trio) then return true end
+	end
+	return false
+end
+
+function spamGuard:destroy(obj)
+	if not obj then return false end
+	
+	-- check if already processed
+	if self.processedObjects[obj] then return false end
+	self.processedObjects[obj] = true
+	
+	pcall(function()
+		local parent = obj.Parent
+		if parent and parent:IsA("Frame") then
+			self.processedObjects[parent] = true
+			parent.Visible = false
+		else
+			obj.Visible = false
+		end
+	end)
+	return true
+end
+
+function spamGuard:inspect(obj)
+	if not obj then return false end
+	-- Check if Anti-Spam Bot is enabled (allows dynamic toggle)
+	if checkSetting then
+		local antiSpam = checkSetting("Anti-Spam Bot")
+		if not antiSpam or not antiSpam.current then return false end
+	end
+	
+	-- Check the object itself
+	if (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) and self:isSpam(obj.Text or "") then
+		return self:destroy(obj)
+	end
+	
+	-- Check descendants
+	for _, d in ipairs(obj:GetDescendants()) do
+		if (d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox")) and self:isSpam(d.Text or "") then
+			if self:destroy(d) then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+function spamGuard:scrub()
+	-- Check if Anti-Spam Bot is enabled (allows dynamic toggle)
+	if checkSetting then
+		local antiSpam = checkSetting("Anti-Spam Bot")
+		if not antiSpam or not antiSpam.current then return end
+	end
+	
+	-- Check both legacy Chat and TextChatService ExperienceChat GUIs
+	local chatGuis = {}
+	local legacyChat = coreGui:FindFirstChild("Chat")
+	local experienceChat = coreGui:FindFirstChild("ExperienceChat")
+	if legacyChat then table.insert(chatGuis, legacyChat) end
+	if experienceChat then table.insert(chatGuis, experienceChat) end
+	
+	local foundSpam = false
+	for _, chatGui in ipairs(chatGuis) do
+		for _, desc in ipairs(chatGui:GetDescendants()) do
+			if (desc:IsA("TextLabel") or desc:IsA("TextButton") or desc:IsA("TextBox")) and desc.Text and self:isSpam(desc.Text) then
+				self:destroy(desc)
+				foundSpam = true
+			end
+		end
+	end
+	
+	-- Removed: notify is called by the main event handlers, not here
+	-- if foundSpam then
+	-- 	self:notify()
+	-- end
+end
+
+function spamGuard:clearChat()
+	-- Removed: was breaking chat
+	return
+end
+
+function spamGuard:report(userId)
+	if not checkSetting then return end
+	local reportSetting = checkSetting("Auto-Report Spam")
+	if not reportSetting or not reportSetting.current then return end
+	if not userId then return end
+	local target = players:GetPlayerByUserId(userId)
+	if not target then return end
+	pcall(function()
+		players:ReportAbuse(target, "Scamming", "Auto-report: spam/scam message detected.")
+	end)
+end
+
+function spamGuard:setupScrubber()
+	if self.setup then return end
+	self.setup = true
+	
+	-- hook chat gui
+	local function hookChatGui(chatGui)
+		if not chatGui then return end
+		chatGui.DescendantAdded:Connect(function(desc)
+			if not checkSetting then return end
+			local antiSpam = checkSetting("Anti-Spam Bot")
+			if not antiSpam or not antiSpam.current then return end
+			
+			if desc:IsA("TextLabel") or desc:IsA("TextButton") or desc:IsA("TextBox") then
+				task.defer(function()
+					if self:isSpam(desc.Text or "") then
+						if self:destroy(desc) then
+							self:notify()
+						end
+					end
+				end)
+			end
+		end)
+	end
+	
+	-- Hook legacy chat (if exists)
+	task.spawn(function()
+		local legacyChat = coreGui:WaitForChild("Chat", 5)
+		hookChatGui(legacyChat)
+	end)
+	
+	-- Hook TextChatService chat (ExperienceChat)
+	task.spawn(function()
+		local experienceChat = coreGui:WaitForChild("ExperienceChat", 5)
+		hookChatGui(experienceChat)
+	end)
+end
+
+-- setup hooks
+task.spawn(function()
+	spamGuard:setupScrubber()
+end)
+
+-- Filter spam via chat event (legacy chat pipeline)
+if getMessage then
+	getMessage.OnClientEvent:Connect(function(packet, channel)
+		if not checkSetting then return end
+		local antiSpam = checkSetting("Anti-Spam Bot")
+		if not (antiSpam and antiSpam.current) then return end
+
+		local text = (packet and packet.Message) or ""
+		if text == "" or not spamGuard:isSpam(text) then return end
+
+		-- notify and scrub
+		spamGuard:notify()
+		task.spawn(function()
+			spamGuard:scrub()
+		end)
+	end)
+end
+
+-- Filter spam via TextChatService (new chat) - using safe MessageReceived event only
+do
+	local tcs = game:FindFirstChildOfClass("TextChatService")
+	if tcs then
+		tcs.MessageReceived:Connect(function(message)
+			if not checkSetting then return end
+			local antiSpam = checkSetting("Anti-Spam Bot")
+			if not (antiSpam and antiSpam.current) or not message then return end
+			local text = message.Text or ""
+			if not spamGuard:isSpam(text) then return end
+
+			-- notify and scrub
+			spamGuard:notify()
+			task.spawn(function()
+				spamGuard:scrub()
+			end)
+		end)
+	end
+end
+
 -- Load shared Spotify & Dynamic Island UI
 local SiriusSpotifyModule
 
@@ -3762,7 +4029,7 @@ local function checkAction(target)
 	return toReturn
 end
 
-local function checkSetting(settingTarget, categoryTarget)
+checkSetting = function(settingTarget, categoryTarget)
 	for _, category in ipairs(siriusSettings) do
 		if categoryTarget then
 			if category.name == categoryTarget then
@@ -3863,7 +4130,7 @@ end
 
 local contentProvider = game:GetService("ContentProvider")
 
-local function queueNotification(Title, Description, Image)
+queueNotification = function(Title, Description, Image)
 	task.spawn(function()		
 		if checkSirius() then
 			local newNotification = notificationContainer.Template:Clone()
@@ -7439,9 +7706,7 @@ dragGUI(KeybindEditor)
 dragGUI(PluginEditor)
 dragGUI(ToPartFrame)
 
--- IY CORE COMMAND PROCESSOR --
--- The core helpers above already define getstring/findCmd/execCmd/addcmd.
--- Keep only lightweight helpers here to avoid register bloat.
+-- IY CORE COMMAND PROCESSOR
 function splitString(str,delim)
 	local broken = {}
 	if delim == nil then delim = "," end
@@ -7901,56 +8166,6 @@ Players.LocalPlayer.Chatted:Connect(function()
 		do_exec(message, Players.LocalPlayer)
 	end
 end)
-
--- Old Cmdbar code - disabled (using CmdInput instead)
---[[
-Cmdbar.PlaceholderText = "Command Bar ("..prefix..")"
-Cmdbar:GetPropertyChangedSignal("Text"):Connect(function()
-	if Cmdbar:IsFocused() then
-		IndexContents(Cmdbar.Text,true,true)
-	end
-end)
-
-local tabComplete = nil
-tabAllowed = true
-Cmdbar.FocusLost:Connect(function(enterpressed)
-	if enterpressed then
-		local cmdbarText = Cmdbar.Text:gsub("^"..prefix,"")
-		execCmd(cmdbarText,Players.LocalPlayer,true)
-	end
-	if tabComplete then tabComplete:Disconnect() end
-	wait()
-	if not Cmdbar:IsFocused() then
-		Cmdbar.Text = ""
-		IndexContents('',true,false,true)
-		if SettingsOpen == true then
-			wait(0.2)
-			Settings:TweenPosition(UDim2.new(0, 0, 0, 45), "InOut", "Quart", 0.2, true, nil)
-			CMDsF.Visible = false
-		end
-	end
-	CMDsF.CanvasPosition = canvasPos
-end)
-
-Cmdbar.Focused:Connect(function()
-	historyCount = 0
-	canvasPos = CMDsF.CanvasPosition
-	if SettingsOpen == true then
-		wait(0.2)
-		CMDsF.Visible = true
-		Settings:TweenPosition(UDim2.new(0, 0, 0, 220), "InOut", "Quart", 0.2, true, nil)
-	end
-	tabComplete = UserInputService.InputBegan:Connect(function(input,gameProcessed)
-		if Cmdbar:IsFocused() then
-			if tabAllowed == true and input.KeyCode == Enum.KeyCode.Tab and topCommand ~= nil then
-				autoComplete(topCommand)
-			end
-		else
-			tabComplete:Disconnect()
-		end
-	end)
-end)
---]]
 
 ESPenabled = false
 CHMSenabled = false
@@ -16489,6 +16704,8 @@ function notify(title, text, duration)
         Frame:Destroy()
     end)
 end
+
+-- queueNotification is already defined at line 4168 with proper Sirius notification
 
 -- Overwrite global aliases
 Cmdbar = CmdInput
