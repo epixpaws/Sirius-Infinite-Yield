@@ -988,6 +988,19 @@ local function buildSpotifyUIInternal()
 	musicPanel.Visible = false
 	musicPanel.ZIndex = 100
 	
+	-- solid bg so panel isn't see-through
+	local solidBg = Instance.new("Frame")
+	solidBg.Name = "SolidBackground"
+	solidBg.Size = UDim2.new(1, 0, 1, 0)
+	solidBg.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+	solidBg.BackgroundTransparency = 0
+	solidBg.BorderSizePixel = 0
+	solidBg.ZIndex = 99
+	solidBg.Parent = musicPanel
+	local solidBgCorner = Instance.new("UICorner")
+	solidBgCorner.CornerRadius = UDim.new(0, 9)
+	solidBgCorner.Parent = solidBg
+	
 	local glowFrame = Instance.new("Frame")
 	glowFrame.Name = "GlowFrame"
 	glowFrame.Size = UDim2.new(1, 0, 1, 0)
