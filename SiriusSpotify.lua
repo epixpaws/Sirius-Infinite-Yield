@@ -992,7 +992,7 @@ local function buildSpotifyUIInternal()
 	local solidBg = Instance.new("Frame")
 	solidBg.Name = "SolidBackground"
 	solidBg.Size = UDim2.new(1, 0, 1, 0)
-	solidBg.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+	solidBg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 	solidBg.BackgroundTransparency = 0
 	solidBg.BorderSizePixel = 0
 	solidBg.ZIndex = 99
