@@ -16745,10 +16745,4 @@ else
 	notify("Sirius Loaded", "Press 'ff in the chat!!!!' to open command bar")
 end
 
--- [[ Sirius Music Player Integration ]] --
--- NOTE: Spotify module is loaded on-demand when the Music button is clicked.
--- See initSpotifyModule() function for the loading logic.
-
-
-
 end
