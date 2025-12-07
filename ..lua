@@ -3774,16 +3774,21 @@ local function openSpotifyPanel()
 		if contentArea then contentArea.Visible = false end
 		if tokenSection then tokenSection.Visible = true end
 		task.delay(0.3, function()
-			for _, element in ipairs(inputElements) do
-				element.Visible = true
-				local targetBg = 0
-				if element.Name == "HowButton" then
-					targetBg = 1
+			if tokenSection then
+				for _, element in ipairs(tokenSection:GetChildren()) do
+					if element:IsA("GuiObject") then
+						element.Visible = true
+						local targetBg = 0
+						if element.Name == "HowButton" then
+							targetBg = 1
+						end
+						local props = {BackgroundTransparency = targetBg}
+						if element:IsA("TextLabel") or element:IsA("TextButton") or element:IsA("TextBox") then
+							props.TextTransparency = 0
+						end
+						tweenService:Create(element, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play()
+					end
 				end
-				tweenService:Create(element, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-					BackgroundTransparency = targetBg,
-					TextTransparency = 0
-				}):Play()
 			end
 		end)
 	end
