@@ -3760,9 +3760,17 @@ local function openSpotifyPanel()
 		return 
 	end
 	spotifyPanelOpen = true
+	
+	-- Setup for animation (mirroring close animation)
 	panel.Visible = true
-	panel.GroupTransparency = 0
-	panel.Size = UDim2.new(0, 600, 0, 350)
+	panel.GroupTransparency = 1
+	panel.Size = UDim2.new(0, 520, 0, 0) -- Start small (collapsed)
+
+    -- Animate Open
+	tweenService:Create(panel, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+		Size = UDim2.new(0, 600, 0, 350),
+		GroupTransparency = 0
+	}):Play()
 
 	-- Get references from the panel
 	local tokenSection = panel:FindFirstChild("TokenSection")
@@ -4911,8 +4919,8 @@ local function ensureFrameProperties()
 	if smartBar.Buttons:FindFirstChild("Music") then
 		smartBar.Buttons.Music.Visible = true
 		smartBar.Buttons.Music.Interact.Active = true
+		smartBar.Buttons.Music.Interact.MouseButton1Click:Connect(initSpotifyModule)
 	end
-	initSpotifyModule()
 end
 
 local function checkFriends()
