@@ -3689,9 +3689,8 @@ end
 
 -- Load shared Spotify & Dynamic Island UI
 local SiriusSpotifyModule
-
-local spotifyPanel
-local spotifyPanelOpen = false
+-- Use table to avoid adding to local variable count (Lua 200 limit)
+local spotifyState = {panel = nil, open = false, buttonConnected = false, moduleLoaded = false}
 
 local function cleanupLegacySpotifyUI()
 	local function destroyIfExists(container, name)
@@ -3723,9 +3722,9 @@ end
 
 local function ensureSpotifyPanel()
 	print("[Sirius] ensureSpotifyPanel called")
-	if spotifyPanel then 
+	if spotifyState.panel then 
 		print("[Sirius] ensureSpotifyPanel: returning existing panel")
-		return spotifyPanel 
+		return spotifyState.panel 
 	end
     
     -- Check local upvalue first, then global
@@ -3733,11 +3732,11 @@ local function ensureSpotifyPanel()
 
 	if module and module.getMusicPanel then
 		print("[Sirius] ensureSpotifyPanel: getting panel from module")
-		spotifyPanel = module.getMusicPanel()
-		if spotifyPanel then
+		spotifyState.panel = module.getMusicPanel()
+		if spotifyState.panel then
 			print("[Sirius] ensureSpotifyPanel: panel retrieved successfully")
-			spotifyPanel.Visible = false
-			spotifyPanel.GroupTransparency = 1
+			spotifyState.panel.Visible = false
+			spotifyState.panel.GroupTransparency = 1
 
 		else
 			warn("[Sirius] ensureSpotifyPanel: getMusicPanel returned nil")
@@ -3745,37 +3744,49 @@ local function ensureSpotifyPanel()
 	else
 		warn("[Sirius] ensureSpotifyPanel: SiriusSpotifyModule or getMusicPanel missing", module)
 	end
-	return spotifyPanel
+	return spotifyState.panel
 end
 
 local function openSpotifyPanel()
-	print("[Sirius] openSpotifyPanel called")
+	print("[Sirius] openSpotifyPanel called, open:", spotifyState.open)
 	local panel = ensureSpotifyPanel()
 	if not panel then 
 		warn("[Sirius] openSpotifyPanel: panel is nil")
 		return 
 	end
-	if spotifyPanelOpen then 
-		print("[Sirius] openSpotifyPanel: already open")
+	if spotifyState.open then 
+		print("[Sirius] openSpotifyPanel: already open, skipping")
 		return 
 	end
-	spotifyPanelOpen = true
-	
-	-- Setup for animation (mirroring close animation)
+	spotifyState.open = true
 	panel.Visible = true
 	panel.GroupTransparency = 1
-	panel.Size = UDim2.new(0, 520, 0, 0) -- Start small (collapsed)
+	panel.Size = UDim2.new(0, 550, 0, 310)
 
-    -- Animate Open
-	tweenService:Create(panel, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-		Size = UDim2.new(0, 600, 0, 350),
-		GroupTransparency = 0
-	}):Play()
-
-	-- Get references from the panel
 	local tokenSection = panel:FindFirstChild("TokenSection")
 	local contentArea = panel:FindFirstChild("ContentArea")
-	
+	local inputElements = {}
+
+	if tokenSection then
+		local submitButton = tokenSection:FindFirstChild("SubmitButton")
+		local tokenInput = tokenSection:FindFirstChild("TokenInput")
+		local howButton = tokenSection:FindFirstChild("HowButton")
+		if submitButton then table.insert(inputElements, submitButton) end
+		if tokenInput then table.insert(inputElements, tokenInput) end
+		if howButton then table.insert(inputElements, howButton) end
+	end
+
+	for _, element in ipairs(inputElements) do
+		element.Visible = false
+		if element:IsA("TextButton") or element:IsA("TextBox") then
+			element.BackgroundTransparency = 1
+			element.TextTransparency = 1
+		end
+	end
+
+	tweenService:Create(panel, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, 600, 0, 350)}):Play()
+	tweenService:Create(panel, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {GroupTransparency = 0}):Play()
+
 	local module = SiriusSpotifyModule or _G.SiriusSpotifyModule
 	local isAuthenticated = module and module.isAuthenticated and module.isAuthenticated()
 	
@@ -3783,24 +3794,34 @@ local function openSpotifyPanel()
 		if tokenSection then tokenSection.Visible = false end
 		contentArea.Visible = true
 	else
-		-- Not authenticated - show token input section
 		if contentArea then contentArea.Visible = false end
-		if tokenSection then 
-			tokenSection.Visible = true
-			-- Make sure all children are visible
-			for _, element in ipairs(tokenSection:GetChildren()) do
-				if element:IsA("GuiObject") then
-					element.Visible = true
+		if tokenSection then tokenSection.Visible = true end
+		task.delay(0.3, function()
+			for _, element in ipairs(inputElements) do
+				element.Visible = true
+				local targetBg = 0
+				if element.Name == "HowButton" then
+					targetBg = 1
 				end
+				tweenService:Create(element, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					BackgroundTransparency = targetBg,
+					TextTransparency = 0
+				}):Play()
 			end
-		end
+		end)
 	end
+	print("[Sirius] openSpotifyPanel finished, open:", spotifyState.open)
 end
 
 local function closeSpotifyPanel()
+	print("[Sirius] closeSpotifyPanel called, open:", spotifyState.open)
 	local panel = ensureSpotifyPanel()
-	if not panel or not spotifyPanelOpen then return end
-	spotifyPanelOpen = false
+	if not panel then return end
+	if not spotifyState.open then 
+		print("[Sirius] closeSpotifyPanel: already closed, skipping")
+		return 
+	end
+	spotifyState.open = false
 	local tokenSection = panel:FindFirstChild("TokenSection")
 	local contentArea = panel:FindFirstChild("ContentArea")
 	if tokenSection then tokenSection.Visible = false end
@@ -3810,15 +3831,21 @@ local function closeSpotifyPanel()
 		GroupTransparency = 1
 	}):Play()
 	task.delay(0.5, function()
-		if not spotifyPanelOpen and panel then
+		if not spotifyState.open and panel then
 			panel.Visible = false
 			panel.Size = UDim2.new(0, 600, 0, 350)
 		end
 	end)
+	print("[Sirius] closeSpotifyPanel finished, open:", spotifyState.open)
 end
 
 local function toggleSpotifyPanel()
-	if spotifyPanelOpen then
+	local panel = ensureSpotifyPanel()
+	if not panel then return end
+	-- Check actual panel visibility, not the flag (flag can desync)
+	local isActuallyVisible = panel.Visible and panel.GroupTransparency < 0.5
+	print("[Sirius] toggleSpotifyPanel - Visible:", panel.Visible, "Transparency:", panel.GroupTransparency, "isActuallyVisible:", isActuallyVisible)
+	if isActuallyVisible then
 		closeSpotifyPanel()
 	else
 		openSpotifyPanel()
@@ -3828,65 +3855,71 @@ end
 local function initSpotifyModule()
 	print("[Sirius] initSpotifyModule called (Music button clicked)")
 	
-	-- On-demand loading: if module not loaded, load it now
-	local module = SiriusSpotifyModule or _G.SiriusSpotifyModule
-	if not module then
-		print("[Sirius] Module not loaded yet, loading from GitHub...")
-		
-		-- Create UI Container
-		local MusicGui = Instance.new("ScreenGui")
-		MusicGui.Name = "SiriusMusicGui"
-		MusicGui.ResetOnSpawn = false
-		if gethui then
-			MusicGui.Parent = gethui()
-		elseif game:GetService("CoreGui") then
-			MusicGui.Parent = game:GetService("CoreGui")
-		else
-			MusicGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
-		end
-
-		-- Mock siriusValues
-		local mockSiriusValues = {
-			loaded = true,
-			settings = {
-				dynamicisland = true
-			}
-		}
-
-		-- Wrap Notification
-		local function mockQueueNotification(title, desc, icon)
-			if notify then
-				notify(title, desc)
+	-- Only load once
+	if not spotifyState.moduleLoaded then
+		local module = SiriusSpotifyModule or _G.SiriusSpotifyModule
+		if not module then
+			print("[Sirius] Module not loaded yet, loading from GitHub...")
+			
+			-- Create UI Container
+			local MusicGui = Instance.new("ScreenGui")
+			MusicGui.Name = "SiriusMusicGui"
+			MusicGui.ResetOnSpawn = false
+			if gethui then
+				MusicGui.Parent = gethui()
+			elseif game:GetService("CoreGui") then
+				MusicGui.Parent = game:GetService("CoreGui")
 			else
-				warn("[SiriusMusic]", title, desc)
+				MusicGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 			end
-		end
 
-		-- Load Module from GitHub
-		local success, SiriusSpotify = pcall(function()
-			return loadstring(game:HttpGet("https://raw.githubusercontent.com/epixpaws/Sirius-Infinite-Yield/refs/heads/main/SiriusSpotify.lua"))()
-		end)
+			-- Mock siriusValues
+			local mockSiriusValues = {
+				loaded = true,
+				settings = {
+					dynamicisland = true
+				}
+			}
 
-		if success and SiriusSpotify and type(SiriusSpotify) == "table" then
-			SiriusSpotifyModule = SiriusSpotify
-			_G.SiriusSpotifyModule = SiriusSpotify
-			SiriusSpotify.init({
-				httpService = game:GetService("HttpService"),
-				httpRequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request,
-				tweenService = game:GetService("TweenService"),
-				userInputService = game:GetService("UserInputService"),
-				UI = MusicGui,
-				siriusValues = mockSiriusValues,
-				queueNotification = mockQueueNotification,
-				getcustomasset = getcustomasset or getsynasset or gethui
-			})
-			SiriusSpotify.buildSpotifyUI()
-			if notify then notify("Spotify Module", "Loaded successfully") end
-			print("[Sirius] Spotify module loaded from GitHub SUCCESS")
+			-- Wrap Notification
+			local function mockQueueNotification(title, desc, icon)
+				if notify then
+					notify(title, desc)
+				else
+					warn("[SiriusMusic]", title, desc)
+				end
+			end
+
+			-- Load Module from GitHub
+			local success, SiriusSpotify = pcall(function()
+				return loadstring(game:HttpGet("https://raw.githubusercontent.com/epixpaws/Sirius-Infinite-Yield/refs/heads/main/SiriusSpotify.lua"))()
+			end)
+
+			if success and SiriusSpotify and type(SiriusSpotify) == "table" then
+				SiriusSpotifyModule = SiriusSpotify
+				_G.SiriusSpotifyModule = SiriusSpotify
+				SiriusSpotify.init({
+					httpService = game:GetService("HttpService"),
+					httpRequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request,
+					tweenService = game:GetService("TweenService"),
+					userInputService = game:GetService("UserInputService"),
+					UI = MusicGui,
+					siriusValues = mockSiriusValues,
+					queueNotification = mockQueueNotification,
+					getcustomasset = getcustomasset or getsynasset or gethui
+				})
+				SiriusSpotify.buildSpotifyUI()
+				spotifyState.moduleLoaded = true
+				if notify then notify("Spotify Module", "Loaded successfully") end
+				print("[Sirius] Spotify module loaded from GitHub SUCCESS")
+			else
+				warn("[Sirius] Failed to load SiriusSpotify module:", SiriusSpotify)
+				if notify then notify("Spotify Module", "Failed to load module") end
+				return
+			end
 		else
-			warn("[Sirius] Failed to load SiriusSpotify module:", SiriusSpotify)
-			if notify then notify("Spotify Module", "Failed to load module") end
-			return
+			-- Module already exists in global, mark as loaded
+			spotifyState.moduleLoaded = true
 		end
 	end
 	
@@ -4916,7 +4949,8 @@ local function ensureFrameProperties()
 	smartBar.Visible = false
 	toastsContainer.Visible = true
 	makeDraggable(settingsPanel)
-	if smartBar.Buttons:FindFirstChild("Music") then
+	if smartBar.Buttons:FindFirstChild("Music") and not spotifyState.buttonConnected then
+		spotifyState.buttonConnected = true
 		smartBar.Buttons.Music.Visible = true
 		smartBar.Buttons.Music.Interact.Active = true
 		smartBar.Buttons.Music.Interact.MouseButton1Click:Connect(initSpotifyModule)
