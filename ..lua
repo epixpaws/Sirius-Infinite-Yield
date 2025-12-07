@@ -3764,6 +3764,10 @@ local function openSpotifyPanel()
 	panel.GroupTransparency = 0
 	panel.Size = UDim2.new(0, 600, 0, 350)
 
+	-- Get references from the panel
+	local tokenSection = panel:FindFirstChild("TokenSection")
+	local contentArea = panel:FindFirstChild("ContentArea")
+	
 	local module = SiriusSpotifyModule or _G.SiriusSpotifyModule
 	local isAuthenticated = module and module.isAuthenticated and module.isAuthenticated()
 	
@@ -3771,26 +3775,17 @@ local function openSpotifyPanel()
 		if tokenSection then tokenSection.Visible = false end
 		contentArea.Visible = true
 	else
+		-- Not authenticated - show token input section
 		if contentArea then contentArea.Visible = false end
-		if tokenSection then tokenSection.Visible = true end
-		task.delay(0.3, function()
-			if tokenSection then
-				for _, element in ipairs(tokenSection:GetChildren()) do
-					if element:IsA("GuiObject") then
-						element.Visible = true
-						local targetBg = 0
-						if element.Name == "HowButton" then
-							targetBg = 1
-						end
-						local props = {BackgroundTransparency = targetBg}
-						if element:IsA("TextLabel") or element:IsA("TextButton") or element:IsA("TextBox") then
-							props.TextTransparency = 0
-						end
-						tweenService:Create(element, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play()
-					end
+		if tokenSection then 
+			tokenSection.Visible = true
+			-- Make sure all children are visible
+			for _, element in ipairs(tokenSection:GetChildren()) do
+				if element:IsA("GuiObject") then
+					element.Visible = true
 				end
 			end
-		end)
+		end
 	end
 end
 
@@ -16709,60 +16704,8 @@ else
 end
 
 -- [[ Sirius Music Player Integration ]] --
-print("[Sirius] Script reached end. Starting Spotify Module Loader...")
--- 1. Create UI Container
-local MusicGui = Instance.new("ScreenGui")
-MusicGui.Name = "SiriusMusicGui"
-MusicGui.ResetOnSpawn = false
-if gethui then
-    MusicGui.Parent = gethui()
-elseif game:GetService("CoreGui") then
-    MusicGui.Parent = game:GetService("CoreGui")
-else
-    MusicGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
-end
-
--- 2. Mock siriusValues
-local mockSiriusValues = {
-    loaded = true,
-    settings = {
-        dynamicisland = true -- Default to enabled
-    }
-}
-
--- 3. Wrap Notification
-local function mockQueueNotification(title, desc, icon)
-    if notify then
-        notify(title, desc)
-    else
-        warn("[SiriusMusic]", title, desc)
-    end
-end
-
--- 4. Load Module -- UPDATED GITHUB LOADER
-local success, SiriusSpotify = pcall(function()
-    return loadstring(game:HttpGet("https://raw.githubusercontent.com/epixpaws/Sirius-Infinite-Yield/refs/heads/main/SiriusSpotify.lua"))()
-end)
-
-if success and SiriusSpotify and type(SiriusSpotify) == "table" then
-    _G.SiriusSpotifyModule = SiriusSpotify -- Use global to bypass scope issues
-    SiriusSpotify.init({
-        httpService = game:GetService("HttpService"),
-        httpRequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request,
-        tweenService = game:GetService("TweenService"),
-        userInputService = game:GetService("UserInputService"),
-        UI = MusicGui,
-        siriusValues = mockSiriusValues,
-        queueNotification = mockQueueNotification,
-        getcustomasset = getcustomasset or getsynasset or gethui
-    })
-    SiriusSpotify.buildSpotifyUI()
-    if notify then notify("Spotify Module", "Loaded successfully") end
-    print("[Sirius] Loading Spotify module from GitHub SUCCESS")
-else
-    warn("Failed to load SiriusSpotify module:", SiriusSpotify)
-    if notify then notify("Spotify Module", "Failed to load module") end
-end
+-- NOTE: Spotify module is loaded on-demand when the Music button is clicked.
+-- See initSpotifyModule() function for the loading logic.
 
 
 
