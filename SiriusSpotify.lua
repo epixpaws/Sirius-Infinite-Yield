@@ -1166,7 +1166,7 @@ local function buildSpotifyUIInternal()
 
 	local tokenInput = Instance.new("TextBox")
 	tokenInput.Name = "TokenInput"
-	tokenInput.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+	tokenInput.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 	tokenInput.Position = UDim2.new(0.5, 0, 0.5, -20)
 	tokenInput.AnchorPoint = Vector2.new(0.5, 0.5)
 	tokenInput.Size = UDim2.new(0, 360, 0, 45)
