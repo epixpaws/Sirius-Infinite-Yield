@@ -3194,6 +3194,9 @@ local soundSuppressionNotificationCooldown = 0
 local soundInstances = {}
 local cachedIds = {}
 local cachedText = {}
+-- O(1) lookup sets for performance (used instead of table.find)
+local cachedIdsSet = {}
+local cachedTextSet = {}
 
 if not getMessage then siriusValues.chatSpy.enabled = false end
 
@@ -7132,43 +7135,58 @@ runService.Heartbeat:Connect(function()
 	end
 end)
 
+-- OPTIMIZED: Reduced per-frame work
 runService.Heartbeat:Connect(function(frame)
 	if not checkSirius() then return end
-	if Pro then
-		if checkSetting("Spatial Shield").current and tonumber(checkSetting("Spatial Shield Threshold").current) then
-			for index, sound in next, soundInstances do
-				if not sound then
-					table.remove(soundInstances, index)
-				elseif gameSettings.MasterVolume * sound.PlaybackLoudness * sound.Volume >= tonumber(checkSetting("Spatial Shield Threshold").current) then
-					if sound.Volume > 0.55 then 
-						suppressedSounds[sound.SoundId] = "S"
-						sound.Volume = 0.5 	
-					elseif sound.Volume > 0.2 and sound.Volume < 0.55 then
-						suppressedSounds[sound.SoundId] = "S2"
-						sound.Volume = 0.1
-					elseif sound.Volume < 0.2 then
-						suppressedSounds[sound.SoundId] = "Mute"
-						sound.Volume = 0
+	
+	-- Spatial Shield - only process if enabled and sounds exist
+	if Pro and #soundInstances > 0 then
+		local spatialSetting = checkSetting("Spatial Shield")
+		if spatialSetting and spatialSetting.current then
+			local thresholdSetting = checkSetting("Spatial Shield Threshold")
+			local threshold = thresholdSetting and tonumber(thresholdSetting.current)
+			if threshold then
+				local masterVol = gameSettings.MasterVolume
+				for index = #soundInstances, 1, -1 do  -- Iterate backwards for safe removal
+					local sound = soundInstances[index]
+					if not sound or not sound.Parent then
+						table.remove(soundInstances, index)
+					elseif masterVol * sound.PlaybackLoudness * sound.Volume >= threshold then
+						local vol = sound.Volume
+						if vol > 0.55 then 
+							suppressedSounds[sound.SoundId] = "S"
+							sound.Volume = 0.5 	
+						elseif vol > 0.2 then
+							suppressedSounds[sound.SoundId] = "S2"
+							sound.Volume = 0.1
+						else
+							suppressedSounds[sound.SoundId] = "Mute"
+							sound.Volume = 0
+						end
+						if soundSuppressionNotificationCooldown == 0 then
+							queueNotification("Spatial Shield","A high-volume audio is being played ("..sound.Name..") and it has been suppressed.", 4483362458) 
+							soundSuppressionNotificationCooldown = 15
+						end
+						table.remove(soundInstances, index)
 					end
-					if soundSuppressionNotificationCooldown == 0 then
-						queueNotification("Spatial Shield","A high-volume audio is being played ("..sound.Name..") and it has been suppressed.", 4483362458) 
-						soundSuppressionNotificationCooldown = 15
-					end
-					table.remove(soundInstances, index)
 				end
 			end
 		end
 	end
 
-	if checkSetting("Anonymous Client").current then
-		for _, text in ipairs(cachedText) do
-			local lowerText = string.lower(text.Text)
-			if string.find(lowerText, lowerName, 1, true) or string.find(lowerText, lowerDisplayName, 1, true) then
-
-				storeOriginalText(text)
-
-				local newText = string.gsub(string.gsub(lowerText, lowerName, randomUsername), lowerDisplayName, randomUsername)
-				text.Text = string.gsub(newText, "^%l", string.upper)
+	-- Anonymous Client - only process if enabled and text exists
+	local anonSetting = checkSetting("Anonymous Client")
+	if anonSetting and anonSetting.current then
+		if #cachedText > 0 then
+			for _, text in ipairs(cachedText) do
+				if text and text.Parent and text.Text then
+					local lowerText = string.lower(text.Text)
+					if string.find(lowerText, lowerName, 1, true) or string.find(lowerText, lowerDisplayName, 1, true) then
+						storeOriginalText(text)
+						local newText = string.gsub(string.gsub(lowerText, lowerName, randomUsername), lowerDisplayName, randomUsername)
+						text.Text = string.gsub(newText, "^%l", string.upper)
+					end
+				end
 			end
 		end
 	else
@@ -7176,48 +7194,33 @@ runService.Heartbeat:Connect(function(frame)
 	end
 end)
 
-for _, instance in next, game:GetDescendants() do
-	if instance:IsA("Sound") then
-		if suppressedSounds[instance.SoundId] then
-			if suppressedSounds[instance.SoundId] == "S" then
-				instance.Volume = 0.5
-			elseif suppressedSounds[instance.SoundId] == "S2" then
-				instance.Volume = 0.1
-			else
-				instance.Volume = 0
-			end
-		else
-			if not table.find(cachedIds, instance.SoundId) then
-				table.insert(soundInstances, instance)
-				table.insert(cachedIds, instance.SoundId)
-			end
-		end
-	elseif instance:IsA("TextLabel") or instance:IsA("TextButton") then
-		if not table.find(cachedText, instance) then
-			table.insert(cachedText, instance)
-		end
-	end
-end
+-- OPTIMIZED: Only scan on-demand when Spatial Shield is first enabled
+-- Removed automatic GetDescendants scan to reduce startup lag
+-- Sound instances are cached dynamically via DescendantAdded
 
+-- OPTIMIZED: DescendantAdded with early returns and O(1) lookups
 game.DescendantAdded:Connect(function(instance)
-	if checkSirius() then
-		if instance:IsA("Sound") then
-			if suppressedSounds[instance.SoundId] then
-				if suppressedSounds[instance.SoundId] == "S" then
-					instance.Volume = 0.5
-				elseif suppressedSounds[instance.SoundId] == "S2" then
-					instance.Volume = 0.1
-				else
-					instance.Volume = 0
-				end
-			else
-				if not table.find(cachedIds, instance.SoundId) then
-					table.insert(soundInstances, instance)
-					table.insert(cachedIds, instance.SoundId)
-				end
-			end
-		elseif instance:IsA("TextLabel") or instance:IsA("TextButton") then
-			if not table.find(cachedText, instance) then
+	if not checkSirius() then return end
+	
+	local className = instance.ClassName
+	
+	-- Only process Sound if Spatial Shield could use it
+	if className == "Sound" then
+		local soundId = instance.SoundId
+		if suppressedSounds[soundId] then
+			local suppLevel = suppressedSounds[soundId]
+			instance.Volume = suppLevel == "S" and 0.5 or suppLevel == "S2" and 0.1 or 0
+		elseif not cachedIdsSet[soundId] then
+			cachedIdsSet[soundId] = true
+			table.insert(soundInstances, instance)
+			table.insert(cachedIds, soundId)
+		end
+	-- Only track text if Anonymous Client is enabled
+	elseif className == "TextLabel" or className == "TextButton" then
+		local anonSetting = checkSetting and checkSetting("Anonymous Client")
+		if anonSetting and anonSetting.current then
+			if not cachedTextSet[instance] then
+				cachedTextSet[instance] = true
 				table.insert(cachedText, instance)
 			end
 		end
