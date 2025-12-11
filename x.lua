@@ -746,18 +746,28 @@ local function createDynamicIsland()
 
 	local pinnedNext = makePinnedBtn("Next", "rbxassetid://88365123525975", UDim2.fromOffset(20, 20), spotifyNext, 5)
 	
-	-- Dedicated Unpin Button in the bar
-	local pinnedUnpin = makePinnedBtn("Unpin", "rbxassetid://121480883042792", UDim2.fromOffset(18, 18), function()
+	-- Dedicated INDEPENDENT Unpin Button (Not in layout, Absolute Right)
+	local pinnedUnpin = Instance.new("ImageButton")
+	pinnedUnpin.Name = "UnpinAbsolute"
+	pinnedUnpin.Size = UDim2.fromOffset(20, 20)
+	pinnedUnpin.Position = UDim2.new(1, -25, 0.5, 0)
+	pinnedUnpin.AnchorPoint = Vector2.new(1, 0.5)
+	pinnedUnpin.BackgroundTransparency = 1
+	pinnedUnpin.Image = "rbxassetid://121480883042792"
+	pinnedUnpin.ImageColor3 = Color3.fromRGB(30, 215, 96)
+	pinnedUnpin.ZIndex = 2000 -- Max priority
+	pinnedUnpin.Parent = pinnedContainer -- Still in container but positioned absolutely
+	
+	pinnedUnpin.MouseButton1Click:Connect(function()
 		localState.isPinned = false
 		if siriusValues and siriusValues.settings then siriusValues.settings.dynamicislandpinned = false end
-	end, 6)
-	pinnedUnpin.ImageColor3 = Color3.fromRGB(30, 215, 96) -- Green to show active state
+	end)
 	
 	-- Global pin button (hidden when pinned)
 	local pinBtn = Instance.new("ImageButton")
 	pinBtn.Name = "PinButton"
 	pinBtn.Size = UDim2.fromOffset(20, 20)
-	pinBtn.Position = UDim2.new(1, -30, 1, -8) -- Lowered further
+	pinBtn.Position = UDim2.new(1, -30, 1, -8) -- Lowered
 	pinBtn.AnchorPoint = Vector2.new(0.5, 0.5)
 	pinBtn.BackgroundTransparency = 1
 	pinBtn.Image = "rbxassetid://108346394273892"
@@ -811,7 +821,7 @@ local function createDynamicIsland()
 	local compactTransSpring = Spring.new(1, 25)
 	local expandedTransSpring = Spring.new(1, 25)
 	local pinnedTransSpring = Spring.new(1, 25)
-	local positionYSpring = Spring.new(2, 17) -- Heavily damped to stop bounce
+	local positionYSpring = Spring.new(2, 17) -- Heavily damped
 
 	widthSpring:SnapTo(400)
 	heightSpring:SnapTo(54)
@@ -838,7 +848,8 @@ local function createDynamicIsland()
 		pinnedTransSpring:SetTarget(s.pinnedTrans)
 		
 		if state == 3 then
-			positionYSpring:SetTarget(0) 
+			-- Pinned: Target 0 (top)
+			positionYSpring:SetTarget(0)
 		else
 			positionYSpring:SetTarget(0.02)
 		end
@@ -846,7 +857,7 @@ local function createDynamicIsland()
 		if state == 2 then
 			hitbox.Size = UDim2.new(0, 500, 0, 250)
 		elseif state == 3 then
-			hitbox.Size = UDim2.new(0, 450, 0, 50) -- Matched width
+			hitbox.Size = UDim2.new(0, 450, 0, 50) -- Matches width
 		else
 			hitbox.Size = UDim2.new(0, 500, 0, 120)
 		end
@@ -885,6 +896,8 @@ local function createDynamicIsland()
 		-- Check Pinned State
 		if localState.isPinned then
 			setShape(3)
+			-- FORCE Position to 0 completely bypassing spring to kill any jitter
+			-- (Spring updates below will be ignored for Y)
 		elseif shapes[2].expandedTrans == 0 then -- currently expanded (checking value from previous loop?) 
 			-- Actually setShape handles targets. We need to respect mouse hover if NOT pinned.
 			-- MouseEnter/Leave handles it.
@@ -906,12 +919,23 @@ local function createDynamicIsland()
 		local newPosY = positionYSpring:Update(dt)
 
 		dynamicIsland.Size = UDim2.fromOffset(newWidth, newHeight)
-		dynamicIsland.Position = UDim2.new(0.5, 0, newPosY, 0)
+		
+		-- CRITICAL JUMP FIX: If pinned, HARD SET Y to 0. Else use spring.
+		if localState.isPinned then
+			dynamicIsland.Position = UDim2.new(0.5, 0, 0, 0)
+		else
+			dynamicIsland.Position = UDim2.new(0.5, 0, newPosY, 0)
+		end
+
 		corner.CornerRadius = UDim.new(0, newCorner)
 		uiScale.Scale = newScale
 		compactContainer.GroupTransparency = newCompactTrans
 		expandedContainer.GroupTransparency = newExpandedTrans
+		
 		pinnedContainer.GroupTransparency = newPinnedTrans
+		-- Ensure pinnedContainer is visible/hittable
+		pinnedContainer.Visible = (newPinnedTrans < 0.9)
+		
 		shadow.Size = UDim2.new(2.0, 0, 3.3, 0)
 
 		-- Sync Pin Button Visibility 
