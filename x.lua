@@ -746,14 +746,14 @@ local function createDynamicIsland()
 
 	local pinnedNext = makePinnedBtn("Next", "rbxassetid://88365123525975", UDim2.fromOffset(20, 20), spotifyNext, 5)
 	
-	-- Pin Unpin logic handled by main pinBtn now
-
-	local playBtn = makeBtn("PlayPause", "rbxassetid://136341313090125", UDim2.new(0.5, 0, 0.5, 0), UDim2.fromOffset(24, 24), function()
-		if isPlaying then spotifyPause() else spotifyResume() end
-	end)
-	makeBtn("Prev", "rbxassetid://138415720834412", UDim2.new(0.5, -45, 0.5, 0), UDim2.fromOffset(24, 24), spotifyPrevious)
-	makeBtn("Next", "rbxassetid://88365123525975", UDim2.new(0.5, 45, 0.5, 0), UDim2.fromOffset(24, 24), spotifyNext)
-
+	-- Dedicated Unpin Button in the bar
+	local pinnedUnpin = makePinnedBtn("Unpin", "rbxassetid://121480883042792", UDim2.fromOffset(18, 18), function()
+		localState.isPinned = false
+		if siriusValues and siriusValues.settings then siriusValues.settings.dynamicislandpinned = false end
+	end, 6)
+	pinnedUnpin.ImageColor3 = Color3.fromRGB(30, 215, 96) -- Green to show active state
+	
+	-- Global pin button (hidden when pinned)
 	local pinBtn = Instance.new("ImageButton")
 	pinBtn.Name = "PinButton"
 	pinBtn.Size = UDim2.fromOffset(20, 20)
@@ -768,10 +768,8 @@ local function createDynamicIsland()
 	pinBtn.MouseButton1Click:Connect(function()
 		localState.isPinned = not localState.isPinned
 		if localState.isPinned then
-			pinBtn.ImageColor3 = Color3.fromRGB(30, 215, 96)
 			if siriusValues and siriusValues.settings then siriusValues.settings.dynamicislandpinned = true end
 		else
-			pinBtn.ImageColor3 = Color3.fromRGB(180, 180, 180)
 			if siriusValues and siriusValues.settings then siriusValues.settings.dynamicislandpinned = false end
 		end
 	end)
@@ -796,7 +794,7 @@ local function createDynamicIsland()
 			pinnedTrans = 1,
 		},
 		[3] = { -- Pinned
-			width = 350, -- Wider for metadata
+			width = 450, -- WAY Smoother/Wider
 			height = 44,
 			corner = 8,
 			scale = 1,
@@ -841,7 +839,6 @@ local function createDynamicIsland()
 		
 		if state == 3 then
 			positionYSpring:SetTarget(0) 
-			positionYSpring:SnapTo(0)
 		else
 			positionYSpring:SetTarget(0.02)
 		end
@@ -849,7 +846,7 @@ local function createDynamicIsland()
 		if state == 2 then
 			hitbox.Size = UDim2.new(0, 500, 0, 250)
 		elseif state == 3 then
-			hitbox.Size = UDim2.new(0, 350, 0, 50)
+			hitbox.Size = UDim2.new(0, 450, 0, 50) -- Matched width
 		else
 			hitbox.Size = UDim2.new(0, 500, 0, 120)
 		end
@@ -917,10 +914,15 @@ local function createDynamicIsland()
 		pinnedContainer.GroupTransparency = newPinnedTrans
 		shadow.Size = UDim2.new(2.0, 0, 3.3, 0)
 
-		-- Sync Pin Button Visibility (Manual since it's outside containers)
+		-- Sync Pin Button Visibility 
+		-- HIDE globally floating pin button when Pinned, because we use the internal one
 		if pinBtn then
-			pinBtn.ImageTransparency = newExpandedTrans
-			pinBtn.Visible = (newExpandedTrans < 0.99)
+			if localState.isPinned then
+				pinBtn.Visible = false
+			else
+				pinBtn.ImageTransparency = newExpandedTrans
+				pinBtn.Visible = (newExpandedTrans < 0.99)
+			end
 		end
 		
 		if localState.isPlaying and localState.duration > 0 then
