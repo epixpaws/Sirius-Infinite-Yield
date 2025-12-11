@@ -1,4 +1,3 @@
-
 local SiriusSpotify = {}
 
 local httpService
@@ -678,12 +677,14 @@ local function createDynamicIsland()
 	pinnedLayout.FillDirection = Enum.FillDirection.Horizontal
 	pinnedLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	pinnedLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	pinnedLayout.SortOrder = Enum.SortOrder.LayoutOrder -- Enforce sorting
 	pinnedLayout.Padding = UDim.new(0, 10)
 	pinnedLayout.Parent = pinnedContainer
 
 	-- Pinned Metadata
 	local pinnedCover = Instance.new("ImageLabel")
 	pinnedCover.Name = "PinnedCover"
+	pinnedCover.LayoutOrder = 1
 	pinnedCover.Size = UDim2.fromOffset(32, 32)
 	pinnedCover.BackgroundTransparency = 1
 	pinnedCover.Image = ""
@@ -693,7 +694,8 @@ local function createDynamicIsland()
 
 	local pinnedInfo = Instance.new("Frame")
 	pinnedInfo.Name = "PinnedInfo"
-	pinnedInfo.Size = UDim2.new(0, 120, 1, 0) -- Fixed width for info
+	pinnedInfo.LayoutOrder = 2
+	pinnedInfo.Size = UDim2.new(0, 120, 1, 0)
 	pinnedInfo.BackgroundTransparency = 1
 	pinnedInfo.Parent = pinnedContainer
 
@@ -723,9 +725,10 @@ local function createDynamicIsland()
 	pinnedArtist.TextTruncate = Enum.TextTruncate.AtEnd
 	pinnedArtist.Parent = pinnedInfo
 	
-	local function makePinnedBtn(name, icon, size, callback)
+	local function makePinnedBtn(name, icon, size, callback, order)
 		local btn = Instance.new("ImageButton")
 		btn.Name = name
+		btn.LayoutOrder = order or 10
 		btn.BackgroundTransparency = 1
 		btn.Size = size
 		btn.Image = icon
@@ -735,13 +738,13 @@ local function createDynamicIsland()
 		return btn
 	end
 	
-	local pinnedPrev = makePinnedBtn("Prev", "rbxassetid://138415720834412", UDim2.fromOffset(20, 20), spotifyPrevious)
+	local pinnedPrev = makePinnedBtn("Prev", "rbxassetid://138415720834412", UDim2.fromOffset(20, 20), spotifyPrevious, 3)
 	
 	local pinnedPlay = makePinnedBtn("PlayPause", "rbxassetid://136341313090125", UDim2.fromOffset(24, 24), function()
 		if isPlaying then spotifyPause() else spotifyResume() end
-	end)
+	end, 4)
 
-	local pinnedNext = makePinnedBtn("Next", "rbxassetid://88365123525975", UDim2.fromOffset(20, 20), spotifyNext)
+	local pinnedNext = makePinnedBtn("Next", "rbxassetid://88365123525975", UDim2.fromOffset(20, 20), spotifyNext, 5)
 	
 	-- Pin Unpin logic handled by main pinBtn now
 
