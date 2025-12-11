@@ -665,47 +665,6 @@ local function createDynamicIsland()
 		return btn
 	end
 
-	local pinnedContainer = Instance.new("CanvasGroup")
-	pinnedContainer.Name = "PinnedContainer"
-	pinnedContainer.BackgroundTransparency = 1
-	pinnedContainer.GroupTransparency = 1
-	pinnedContainer.Size = UDim2.new(1, 0, 1, 0)
-	pinnedContainer.ZIndex = 1002
-	pinnedContainer.Parent = dynamicIsland
-	
-	local pinnedLayout = Instance.new("UIListLayout")
-	pinnedLayout.FillDirection = Enum.FillDirection.Horizontal
-	pinnedLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	pinnedLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	pinnedLayout.Padding = UDim.new(0, 15)
-	pinnedLayout.Parent = pinnedContainer
-	
-	local function makePinnedBtn(name, icon, size, callback)
-		local btn = Instance.new("ImageButton")
-		btn.Name = name
-		btn.BackgroundTransparency = 1
-		btn.Size = size
-		btn.Image = icon
-		btn.ImageColor3 = Color3.new(1, 1, 1)
-		btn.Parent = pinnedContainer
-		if callback then btn.MouseButton1Click:Connect(callback) end
-		return btn
-	end
-	
-	local pinnedPrev = makePinnedBtn("Prev", "rbxassetid://138415720834412", UDim2.fromOffset(20, 20), spotifyPrevious)
-	
-	local pinnedPlay = makePinnedBtn("PlayPause", "rbxassetid://136341313090125", UDim2.fromOffset(24, 24), function()
-		if isPlaying then spotifyPause() else spotifyResume() end
-	end)
-
-	local pinnedNext = makePinnedBtn("Next", "rbxassetid://88365123525975", UDim2.fromOffset(20, 20), spotifyNext)
-	
-	local pinnedPin = makePinnedBtn("PinButton", "rbxassetid://108346394273892", UDim2.fromOffset(18, 18), function()
-		localState.isPinned = false
-		if siriusValues and siriusValues.settings then siriusValues.settings.dynamicislandpinned = false end
-	end)
-	pinnedPin.ImageColor3 = Color3.fromRGB(30, 215, 96) 
-
 	local playBtn = makeBtn("PlayPause", "rbxassetid://136341313090125", UDim2.new(0.5, 0, 0.5, 0), UDim2.fromOffset(24, 24), function()
 		if isPlaying then spotifyPause() else spotifyResume() end
 	end)
@@ -715,52 +674,43 @@ local function createDynamicIsland()
 	local pinBtn = Instance.new("ImageButton")
 	pinBtn.Name = "PinButton"
 	pinBtn.Size = UDim2.fromOffset(20, 20)
-	pinBtn.Position = UDim2.new(1, -30, 1, -20)
+	pinBtn.Position = UDim2.new(1, -30, 1, -30)
 	pinBtn.AnchorPoint = Vector2.new(0.5, 0.5)
 	pinBtn.BackgroundTransparency = 1
-	pinBtn.Image = "rbxassetid://108346394273892"
-	pinBtn.ImageColor3 = Color3.fromRGB(180, 180, 180)
+	pinBtn.Image = "rbxassetid://82008729089381"
+	pinBtn.ImageColor3 = Color3.fromRGB(180, 180, 180) -- Subtle grey
 	pinBtn.Parent = expandedContainer
 	
 	pinBtn.MouseButton1Click:Connect(function()
-		localState.isPinned = not localState.isPinned
-		if localState.isPinned then
-			pinBtn.ImageColor3 = Color3.fromRGB(30, 215, 96)
-			if siriusValues and siriusValues.settings then siriusValues.settings.dynamicislandpinned = true end
-		else
+		-- Toggle pinning logic here if needed, or visual feedback
+		-- For now, maybe toggle StayOpen setting if accessible, or just visual toggle
+		local isPinned = pinBtn.ImageColor3 == Color3.fromRGB(30, 215, 96)
+		if isPinned then
 			pinBtn.ImageColor3 = Color3.fromRGB(180, 180, 180)
 			if siriusValues and siriusValues.settings then siriusValues.settings.dynamicislandpinned = false end
+		else
+			pinBtn.ImageColor3 = Color3.fromRGB(30, 215, 96)
+			if siriusValues and siriusValues.settings then siriusValues.settings.dynamicislandpinned = true end
 		end
 	end)
 
 	local shapes = {
-		[1] = { -- Compact
+		[1] = {
 			width = 400,
 			height = 54,
 			corner = 12,
 			scale = 1,
 			compactTrans = 0,
 			expandedTrans = 1,
-			pinnedTrans = 1,
 		},
-		[2] = { -- Expanded
+		[2] = {
 			width = 340,
 			height = 160,
 			corner = 32,
 			scale = 1.02,
 			compactTrans = 1,
 			expandedTrans = 0,
-			pinnedTrans = 1,
 		},
-		[3] = { -- Pinned
-			width = 160,
-			height = 44,
-			corner = 22,
-			scale = 1,
-			compactTrans = 1,
-			expandedTrans = 1,
-			pinnedTrans = 0,
-		}
 	}
 
 	local widthSpring = Spring.new(1, 17)
@@ -769,8 +719,6 @@ local function createDynamicIsland()
 	local scaleSpring = Spring.new(1, 22)
 	local compactTransSpring = Spring.new(1, 25)
 	local expandedTransSpring = Spring.new(1, 25)
-	local pinnedTransSpring = Spring.new(1, 25)
-	local positionYSpring = Spring.new(0.02, 17) -- For vertical position animation
 
 	widthSpring:SnapTo(400)
 	heightSpring:SnapTo(54)
@@ -778,8 +726,6 @@ local function createDynamicIsland()
 	scaleSpring:SnapTo(1)
 	compactTransSpring:SnapTo(0)
 	expandedTransSpring:SnapTo(1)
-	pinnedTransSpring:SnapTo(1)
-	positionYSpring:SnapTo(0.02)
 
 	local function setShape(state)
 		local s = shapes[state]
@@ -791,29 +737,16 @@ local function createDynamicIsland()
 		scaleSpring:SetTarget(s.scale)
 		compactTransSpring:SetTarget(s.compactTrans)
 		expandedTransSpring:SetTarget(s.expandedTrans)
-		pinnedTransSpring:SetTarget(s.pinnedTrans)
-		
-		if state == 3 then
-			positionYSpring:SetTarget(0) -- Top
-		else
-			positionYSpring:SetTarget(0.02)
-		end
 		
 		if state == 2 then
 			hitbox.Size = UDim2.new(0, 500, 0, 250)
-		elseif state == 3 then
-			hitbox.Size = UDim2.new(0, 160, 0, 50)
 		else
 			hitbox.Size = UDim2.new(0, 500, 0, 120)
 		end
 	end
 
-	hitbox.MouseEnter:Connect(function() 
-		if not localState.isPinned then setShape(2) end 
-	end)
-	hitbox.MouseLeave:Connect(function() 
-		if not localState.isPinned then setShape(1) end 
-	end)
+	hitbox.MouseEnter:Connect(function() setShape(2) end)
+	hitbox.MouseLeave:Connect(function() setShape(1) end)
 
 	dynamicIslandConnection = runService.RenderStepped:Connect(function(dt)
 		if not dynamicIsland or not dynamicIsland.Parent then return end
@@ -829,36 +762,18 @@ local function createDynamicIsland()
 			dynamicIsland.Visible = false
 		end
 		
-		-- Check Pinned State
-		if localState.isPinned then
-			setShape(3)
-		elseif shapes[2].expandedTrans == 0 then -- currently expanded (checking value from previous loop?) 
-			-- Actually setShape handles targets. We need to respect mouse hover if NOT pinned.
-			-- MouseEnter/Leave handles it.
-			-- But if we just unpinned, we should revert to... Expanded if mouse over?
-			-- We'll let MouseLeave handle it if we move away.
-			-- If unpinned while mouse is over, it might stay pinned shape until mouse move?
-			-- We can force check mouse overlap here but maybe overkill.
-		else
-			-- setShape(1) handled by default or mouse events
-		end
-		
 		local newWidth = widthSpring:Update(dt)
 		local newHeight = heightSpring:Update(dt)
 		local newCorner = cornerSpring:Update(dt)
 		local newScale = scaleSpring:Update(dt)
 		local newCompactTrans = compactTransSpring:Update(dt)
 		local newExpandedTrans = expandedTransSpring:Update(dt)
-		local newPinnedTrans = pinnedTransSpring:Update(dt)
-		local newPosY = positionYSpring:Update(dt)
 
 		dynamicIsland.Size = UDim2.fromOffset(newWidth, newHeight)
-		dynamicIsland.Position = UDim2.new(0.5, 0, newPosY, 0)
 		corner.CornerRadius = UDim.new(0, newCorner)
 		uiScale.Scale = newScale
 		compactContainer.GroupTransparency = newCompactTrans
 		expandedContainer.GroupTransparency = newExpandedTrans
-		pinnedContainer.GroupTransparency = newPinnedTrans
 		shadow.Size = UDim2.new(2.0, 0, 3.3, 0)
 		
 		if localState.isPlaying and localState.duration > 0 then
