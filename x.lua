@@ -798,7 +798,7 @@ local function createDynamicIsland()
 		[3] = { -- Pinned
 			width = 350, -- Wider for metadata
 			height = 44,
-			corner = 22,
+			corner = 8,
 			scale = 1,
 			compactTrans = 1,
 			expandedTrans = 1,
@@ -841,6 +841,7 @@ local function createDynamicIsland()
 		
 		if state == 3 then
 			positionYSpring:SetTarget(0) 
+			positionYSpring:SnapTo(0)
 		else
 			positionYSpring:SetTarget(0.02)
 		end
@@ -848,7 +849,7 @@ local function createDynamicIsland()
 		if state == 2 then
 			hitbox.Size = UDim2.new(0, 500, 0, 250)
 		elseif state == 3 then
-			hitbox.Size = UDim2.new(0, 160, 0, 50)
+			hitbox.Size = UDim2.new(0, 350, 0, 50)
 		else
 			hitbox.Size = UDim2.new(0, 500, 0, 120)
 		end
