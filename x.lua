@@ -641,30 +641,7 @@ local function createDynamicIsland()
 	timeEnd.TextXAlignment = Enum.TextXAlignment.Right
 	timeEnd.Parent = progressContainer
 
-	local controlsContainer = Instance.new("Frame")
-	controlsContainer.Name = "Controls"
-	controlsContainer.Position = UDim2.new(0, 20, 0, 120)
-	controlsContainer.Size = UDim2.new(1, -40, 0, 30)
-	controlsContainer.BackgroundTransparency = 1
-	controlsContainer.Parent = expandedContainer
-
-	local function makeBtn(name, icon, pos, size, callback)
-		local btn = Instance.new("ImageButton")
-		btn.Name = name
-		btn.BackgroundTransparency = 1
-		btn.Position = pos
-		btn.Size = size
-		btn.AnchorPoint = Vector2.new(0.5, 0.5)
-		btn.Image = icon
-		btn.ImageColor3 = Color3.new(1, 1, 1)
-		btn.Parent = controlsContainer
-		
-		if callback then
-			btn.MouseButton1Click:Connect(callback)
-		end
-		return btn
-	end
-
+	-- Pinned Container (Redesigned)
 	local pinnedContainer = Instance.new("CanvasGroup")
 	pinnedContainer.Name = "PinnedContainer"
 	pinnedContainer.BackgroundTransparency = 1
@@ -698,7 +675,7 @@ local function createDynamicIsland()
 
 	local pinnedInfo = Instance.new("Frame")
 	pinnedInfo.Name = "PinnedInfo"
-	pinnedInfo.Size = UDim2.new(0.8, 0, 0.8, 0) -- Fill remaining height
+	pinnedInfo.Size = UDim2.new(0.8, 0, 0.8, 0)
 	pinnedInfo.BackgroundTransparency = 1
 	pinnedInfo.Parent = pinnedLeft
 	
@@ -774,7 +751,7 @@ local function createDynamicIsland()
 		if siriusValues and siriusValues.settings then siriusValues.settings.dynamicislandpinned = false end
 	end, 4)
 	pinnedUnpin.ImageColor3 = Color3.fromRGB(30, 215, 96)
-	
+
 	-- Global pin button (hidden when pinned)
 	local pinBtn = Instance.new("ImageButton")
 	pinBtn.Name = "PinButton"
@@ -816,7 +793,7 @@ local function createDynamicIsland()
 			pinnedTrans = 1,
 		},
 		[3] = { -- Pinned
-			width = 450, -- WAY Smoother/Wider
+			width = 450,
 			height = 50,
 			corner = 8,
 			scale = 1,
@@ -843,9 +820,6 @@ local function createDynamicIsland()
 	expandedTransSpring:SnapTo(1)
 	pinnedTransSpring:SnapTo(1)
 	positionYSpring:SnapTo(0.02)
-    -- ... (rest of springs match) ...
-
-	-- ... skipping setShape/renderStepped update, handled by context below but need to update updateDynamicIsland down ...
 
 	local function setShape(state)
 		local s = shapes[state]
@@ -860,7 +834,6 @@ local function createDynamicIsland()
 		pinnedTransSpring:SetTarget(s.pinnedTrans)
 		
 		if state == 3 then
-			-- Pinned: Target 0 (top)
 			positionYSpring:SetTarget(0)
 		else
 			positionYSpring:SetTarget(0.02)
@@ -874,15 +847,6 @@ local function createDynamicIsland()
 			hitbox.Size = UDim2.new(0, 500, 0, 120)
 		end
 	end
-
-    -- ... (keep existing listeners) ...
-
-    -- We need to update updateDynamicIsland to populate the new Pinned Metadata.
-    -- Since this tool replacement covers top part, I need to make sure I don't break logic.
-    -- I will target the creation block and then separately target updateDynamicIsland.
-    
-    -- Returning just the creation block for now.
-
 
 	hitbox.MouseEnter:Connect(function() 
 		if not localState.isPinned then setShape(2) end 
@@ -905,18 +869,12 @@ local function createDynamicIsland()
 			dynamicIsland.Visible = false
 		end
 		
-		-- Check Pinned State
 		if localState.isPinned then
 			setShape(3)
-			-- FORCE Position to 0 completely bypassing spring to kill any jitter
-			-- (Spring updates below will be ignored for Y)
-		elseif shapes[2].expandedTrans == 0 then -- currently expanded (checking value from previous loop?) 
-			-- Actually setShape handles targets. We need to respect mouse hover if NOT pinned.
-			-- MouseEnter/Leave handles it.
-			-- If unpinned while mouse is over, it might stay pinned shape until mouse move?
-			-- We can force check mouse overlap here but maybe overkill.
+		elseif shapes[2].expandedTrans == 0 then
+             -- keep expanded
 		else
-			-- setShape(1) handled by default or mouse events
+			-- standard logic
 		end
 		
 		local newWidth = widthSpring:Update(dt)
@@ -930,9 +888,8 @@ local function createDynamicIsland()
 
 		dynamicIsland.Size = UDim2.fromOffset(newWidth, newHeight)
 		
-		-- CRITICAL JUMP FIX: If pinned, HARD SET Y to 0. Else use spring.
 		if localState.isPinned then
-			dynamicIsland.Position = UDim2.new(0.5, 0, 0, 6) -- Minimal padding from top edge
+			dynamicIsland.Position = UDim2.new(0.5, 0, 0, 6) -- Locked top
 		else
 			dynamicIsland.Position = UDim2.new(0.5, 0, newPosY, 0)
 		end
@@ -941,15 +898,11 @@ local function createDynamicIsland()
 		uiScale.Scale = newScale
 		compactContainer.GroupTransparency = newCompactTrans
 		expandedContainer.GroupTransparency = newExpandedTrans
-		
 		pinnedContainer.GroupTransparency = newPinnedTrans
-		-- Ensure pinnedContainer is visible/hittable
 		pinnedContainer.Visible = (newPinnedTrans < 0.9)
 		
 		shadow.Size = UDim2.new(2.0, 0, 3.3, 0)
-
-		-- Sync Pin Button Visibility 
-		-- HIDE globally floating pin button when Pinned, because we use the internal one
+		
 		if pinBtn then
 			if localState.isPinned then
 				pinBtn.Visible = false
@@ -984,7 +937,7 @@ local function createDynamicIsland()
 					end
 					
 					if tStart then tStart.Text = fmt(math.floor(current)) end
-					if tEnd then tEnd.Text = "-"..fmt(math.floor(localState.duration - current)) end
+					if tEnd then tEnd.Text = fmt(math.floor(localState.duration)) end
 				end
 			end
 		else
@@ -1031,6 +984,65 @@ local function createDynamicIsland()
 end
 
 updateDynamicIsland = function(data)
+	if dynamicIsland and dynamicIsland:FindFirstChild("CompactContainer") then
+		local compactTitle = dynamicIsland.CompactContainer:FindFirstChild("CompactInfo") and dynamicIsland.CompactContainer.CompactInfo:FindFirstChild("Title")
+		local compactArtist = dynamicIsland.CompactContainer:FindFirstChild("CompactInfo") and dynamicIsland.CompactContainer.CompactInfo:FindFirstChild("Artist")
+		local expandedTitle = dynamicIsland.ExpandedContainer:FindFirstChild("ExpandedInfo") and dynamicIsland.ExpandedContainer.ExpandedInfo:FindFirstChild("Title")
+		local expandedArtist = dynamicIsland.ExpandedContainer:FindFirstChild("ExpandedInfo") and dynamicIsland.ExpandedContainer.ExpandedInfo:FindFirstChild("Artist")
+		
+		local title = data.song and data.song.name or "Not Playing"
+		local artist = "Unknown Artist"
+		if data.artists then
+			local names = {}
+			for _, v in pairs(data.artists) do table.insert(names, v.name) end
+			artist = table.concat(names, ", ")
+		end
+		
+		if compactTitle then compactTitle.Text = title end
+		if compactArtist then compactArtist.Text = artist end
+		if expandedTitle then expandedTitle.Text = title end
+		if expandedArtist then expandedArtist.Text = artist end
+		
+		-- Update Pinned Info ONLY if it exists
+		if dynamicIsland:FindFirstChild("PinnedContainer") then
+			local pInfo = dynamicIsland.PinnedContainer:FindFirstChild("LeftArea") and dynamicIsland.PinnedContainer.LeftArea:FindFirstChild("PinnedInfo")
+			if pInfo then
+				local pTitle = pInfo:FindFirstChild("Title")
+				local pArtist = pInfo:FindFirstChild("Artist")
+				if pTitle then pTitle.Text = title end
+				if pArtist then pArtist.Text = artist end
+			end
+		end
+
+		if data.images and (data.images.songCover or data.images.artistCover) then
+			local artId = data.images.songCover or data.images.artistCover
+			if artId ~= currentCover then
+				currentCover = artId
+				task.spawn(function()
+					local success, img = pcall(function() return game:HttpGet(artId) end)
+					if success then
+						local cArt = dynamicIsland.CompactContainer:FindFirstChild("CompactArt")
+						local eArt = dynamicIsland.ExpandedContainer:FindFirstChild("ExpandedArt")
+						if cArt then cArt.Image = artId end
+						if eArt then eArt.Image = artId end
+						
+						if dynamicIsland:FindFirstChild("PinnedContainer") then
+							local pArt = dynamicIsland.PinnedContainer:FindFirstChild("LeftArea") and dynamicIsland.PinnedContainer.LeftArea:FindFirstChild("PinnedCover")
+							if pArt then pArt.Image = artId end
+						end
+					end
+				end)
+			end
+		else
+			-- No cover art logic
+		end
+		
+		if data.playback and dynamicIslandState then
+			dynamicIslandState.isPlaying = data.playback.playing
+			dynamicIslandState.hasSong = true
+		end
+	end
+end
 	if not dynamicIsland then return end
 	local show = dynamicIslandShow
 	
@@ -1093,18 +1105,10 @@ updateDynamicIsland = function(data)
 						local eArt = dynamicIsland:FindFirstChild("ExpandedContainer") and dynamicIsland.ExpandedContainer:FindFirstChild("ExpandedArt")
 						if cArt and cArt.Image ~= artId then cArt.Image = artId end
 						if eArt and eArt.Image ~= artId then eArt.Image = artId end
-						
-						local pArt = dynamicIsland:FindFirstChild("PinnedContainer") and dynamicIsland.PinnedContainer:FindFirstChild("PinnedCover")
-						if pArt and pArt.Image ~= artId then pArt.Image = artId end
 					end
 				end
 			end)
 		end
-		
-		local pinnedTitle = dynamicIsland:FindFirstChild("PinnedContainer"):FindFirstChild("PinnedInfo"):FindFirstChild("Title")
-		local pinnedArtist = dynamicIsland:FindFirstChild("PinnedContainer"):FindFirstChild("PinnedInfo"):FindFirstChild("Artist")
-		if pinnedTitle then pinnedTitle.Text = title end
-		if pinnedArtist then pinnedArtist.Text = artist end
 		
 		if data.playback and dynamicIslandState then
 			dynamicIslandState.isPlaying = data.playback.playing
