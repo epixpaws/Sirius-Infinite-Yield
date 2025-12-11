@@ -715,12 +715,13 @@ local function createDynamicIsland()
 	local pinBtn = Instance.new("ImageButton")
 	pinBtn.Name = "PinButton"
 	pinBtn.Size = UDim2.fromOffset(20, 20)
-	pinBtn.Position = UDim2.new(1, -30, 1, -20)
+	pinBtn.Position = UDim2.new(1, -30, 1, -12) -- Lowered
 	pinBtn.AnchorPoint = Vector2.new(0.5, 0.5)
 	pinBtn.BackgroundTransparency = 1
 	pinBtn.Image = "rbxassetid://108346394273892"
 	pinBtn.ImageColor3 = Color3.fromRGB(180, 180, 180)
-	pinBtn.Parent = expandedContainer
+	pinBtn.ZIndex = 1005 -- High ZIndex
+	pinBtn.Parent = dynamicIsland -- Moved out of expandedContainer
 	
 	pinBtn.MouseButton1Click:Connect(function()
 		localState.isPinned = not localState.isPinned
@@ -860,6 +861,12 @@ local function createDynamicIsland()
 		expandedContainer.GroupTransparency = newExpandedTrans
 		pinnedContainer.GroupTransparency = newPinnedTrans
 		shadow.Size = UDim2.new(2.0, 0, 3.3, 0)
+
+		-- Sync Pin Button Visibility (Manual since it's outside containers)
+		if pinBtn then
+			pinBtn.ImageTransparency = newExpandedTrans
+			pinBtn.Visible = (newExpandedTrans < 0.99)
+		end
 		
 		if localState.isPlaying and localState.duration > 0 then
 			local elapsed = tick() - localState.lastUpdate
