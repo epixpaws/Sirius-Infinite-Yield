@@ -673,37 +673,45 @@ local function createDynamicIsland()
 	pinnedContainer.ZIndex = 1002
 	pinnedContainer.Parent = dynamicIsland
 	
-	local pinnedLayout = Instance.new("UIListLayout")
-	pinnedLayout.FillDirection = Enum.FillDirection.Horizontal
-	pinnedLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	pinnedLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	pinnedLayout.SortOrder = Enum.SortOrder.LayoutOrder -- Enforce sorting
-	pinnedLayout.Padding = UDim.new(0, 10)
-	pinnedLayout.Parent = pinnedContainer
+	-- LEFT SIDE: Cover + Text
+	local pinnedLeft = Instance.new("Frame")
+	pinnedLeft.Name = "LeftArea"
+	pinnedLeft.Size = UDim2.new(0.6, 0, 1, 0)
+	pinnedLeft.Position = UDim2.new(0, 15, 0, 0)
+	pinnedLeft.BackgroundTransparency = 1
+	pinnedLeft.Parent = pinnedContainer
 
-	-- Pinned Metadata
+	local pinnedLeftLayout = Instance.new("UIListLayout")
+	pinnedLeftLayout.FillDirection = Enum.FillDirection.Horizontal
+	pinnedLeftLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	pinnedLeftLayout.Padding = UDim.new(0, 10)
+	pinnedLeftLayout.Parent = pinnedLeft
+
 	local pinnedCover = Instance.new("ImageLabel")
 	pinnedCover.Name = "PinnedCover"
-	pinnedCover.LayoutOrder = 1
-	pinnedCover.Size = UDim2.fromOffset(32, 32)
+	pinnedCover.Size = UDim2.fromOffset(34, 34)
 	pinnedCover.BackgroundTransparency = 1
 	pinnedCover.Image = ""
 	pinnedCover.ScaleType = Enum.ScaleType.Crop
-	pinnedCover.Parent = pinnedContainer
-	local pcCorner = Instance.new("UICorner"); pcCorner.CornerRadius = UDim.new(0, 4); pcCorner.Parent = pinnedCover
+	pinnedCover.Parent = pinnedLeft
+	local pcCorner = Instance.new("UICorner"); pcCorner.CornerRadius = UDim.new(1, 0); pcCorner.Parent = pinnedCover -- Circle
 
 	local pinnedInfo = Instance.new("Frame")
 	pinnedInfo.Name = "PinnedInfo"
-	pinnedInfo.LayoutOrder = 2
-	pinnedInfo.Size = UDim2.new(0, 120, 1, 0)
+	pinnedInfo.Size = UDim2.new(0.8, 0, 0.8, 0) -- Fill remaining height
 	pinnedInfo.BackgroundTransparency = 1
-	pinnedInfo.Parent = pinnedContainer
+	pinnedInfo.Parent = pinnedLeft
+	
+	local pinnedInfoLayout = Instance.new("UIListLayout")
+	pinnedInfoLayout.FillDirection = Enum.FillDirection.Vertical
+	pinnedInfoLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	pinnedInfoLayout.Padding = UDim.new(0, 2)
+	pinnedInfoLayout.Parent = pinnedInfo
 
 	local pinnedTitle = Instance.new("TextLabel")
 	pinnedTitle.Name = "Title"
 	pinnedTitle.BackgroundTransparency = 1
-	pinnedTitle.Position = UDim2.new(0, 0, 0.2, 0)
-	pinnedTitle.Size = UDim2.new(1, 0, 0.3, 0)
+	pinnedTitle.Size = UDim2.new(1, 0, 0, 16)
 	pinnedTitle.Font = Enum.Font.GothamBold
 	pinnedTitle.Text = "Title"
 	pinnedTitle.TextColor3 = Color3.new(1, 1, 1)
@@ -715,15 +723,30 @@ local function createDynamicIsland()
 	local pinnedArtist = Instance.new("TextLabel")
 	pinnedArtist.Name = "Artist"
 	pinnedArtist.BackgroundTransparency = 1
-	pinnedArtist.Position = UDim2.new(0, 0, 0.5, 0)
-	pinnedArtist.Size = UDim2.new(1, 0, 0.3, 0)
+	pinnedArtist.Size = UDim2.new(1, 0, 0, 14)
 	pinnedArtist.Font = Enum.Font.Gotham
 	pinnedArtist.Text = "Artist"
 	pinnedArtist.TextColor3 = Color3.fromRGB(180, 180, 180)
-	pinnedArtist.TextSize = 11
+	pinnedArtist.TextSize = 12
 	pinnedArtist.TextXAlignment = Enum.TextXAlignment.Left
 	pinnedArtist.TextTruncate = Enum.TextTruncate.AtEnd
 	pinnedArtist.Parent = pinnedInfo
+
+	-- RIGHT SIDE: Controls
+	local pinnedRight = Instance.new("Frame")
+	pinnedRight.Name = "RightArea"
+	pinnedRight.Size = UDim2.new(0.4, 0, 1, 0)
+	pinnedRight.Position = UDim2.new(1, -15, 0, 0)
+	pinnedRight.AnchorPoint = Vector2.new(1, 0)
+	pinnedRight.BackgroundTransparency = 1
+	pinnedRight.Parent = pinnedContainer
+
+	local pinnedRightLayout = Instance.new("UIListLayout")
+	pinnedRightLayout.FillDirection = Enum.FillDirection.Horizontal
+	pinnedRightLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	pinnedRightLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	pinnedRightLayout.Padding = UDim.new(0, 12)
+	pinnedRightLayout.Parent = pinnedRight
 	
 	local function makePinnedBtn(name, icon, size, callback, order)
 		local btn = Instance.new("ImageButton")
@@ -733,35 +756,24 @@ local function createDynamicIsland()
 		btn.Size = size
 		btn.Image = icon
 		btn.ImageColor3 = Color3.new(1, 1, 1)
-		btn.Parent = pinnedContainer
+		btn.Parent = pinnedRight
 		if callback then btn.MouseButton1Click:Connect(callback) end
 		return btn
 	end
 	
-	local pinnedPrev = makePinnedBtn("Prev", "rbxassetid://138415720834412", UDim2.fromOffset(20, 20), spotifyPrevious, 3)
+	local pinnedPrev = makePinnedBtn("Prev", "rbxassetid://138415720834412", UDim2.fromOffset(20, 20), spotifyPrevious, 1)
 	
 	local pinnedPlay = makePinnedBtn("PlayPause", "rbxassetid://136341313090125", UDim2.fromOffset(24, 24), function()
 		if isPlaying then spotifyPause() else spotifyResume() end
-	end, 4)
+	end, 2)
 
-	local pinnedNext = makePinnedBtn("Next", "rbxassetid://88365123525975", UDim2.fromOffset(20, 20), spotifyNext, 5)
-	
-	-- Dedicated INDEPENDENT Unpin Button (Not in layout, Absolute Right)
-	local pinnedUnpin = Instance.new("ImageButton")
-	pinnedUnpin.Name = "UnpinAbsolute"
-	pinnedUnpin.Size = UDim2.fromOffset(20, 20)
-	pinnedUnpin.Position = UDim2.new(1, -25, 0.5, 0)
-	pinnedUnpin.AnchorPoint = Vector2.new(1, 0.5)
-	pinnedUnpin.BackgroundTransparency = 1
-	pinnedUnpin.Image = "rbxassetid://121480883042792"
-	pinnedUnpin.ImageColor3 = Color3.fromRGB(30, 215, 96)
-	pinnedUnpin.ZIndex = 2000 -- Max priority
-	pinnedUnpin.Parent = pinnedContainer -- Still in container but positioned absolutely
-	
-	pinnedUnpin.MouseButton1Click:Connect(function()
+	local pinnedNext = makePinnedBtn("Next", "rbxassetid://88365123525975", UDim2.fromOffset(20, 20), spotifyNext, 3)
+
+	local pinnedUnpin = makePinnedBtn("Unpin", "rbxassetid://121480883042792", UDim2.fromOffset(18, 18), function()
 		localState.isPinned = false
 		if siriusValues and siriusValues.settings then siriusValues.settings.dynamicislandpinned = false end
-	end)
+	end, 4)
+	pinnedUnpin.ImageColor3 = Color3.fromRGB(30, 215, 96)
 	
 	-- Global pin button (hidden when pinned)
 	local pinBtn = Instance.new("ImageButton")
@@ -805,7 +817,7 @@ local function createDynamicIsland()
 		},
 		[3] = { -- Pinned
 			width = 450, -- WAY Smoother/Wider
-			height = 44,
+			height = 50,
 			corner = 8,
 			scale = 1,
 			compactTrans = 1,
@@ -857,7 +869,7 @@ local function createDynamicIsland()
 		if state == 2 then
 			hitbox.Size = UDim2.new(0, 500, 0, 250)
 		elseif state == 3 then
-			hitbox.Size = UDim2.new(0, 450, 0, 50) -- Matches width
+			hitbox.Size = UDim2.new(0, 450, 0, 60)
 		else
 			hitbox.Size = UDim2.new(0, 500, 0, 120)
 		end
@@ -901,8 +913,6 @@ local function createDynamicIsland()
 		elseif shapes[2].expandedTrans == 0 then -- currently expanded (checking value from previous loop?) 
 			-- Actually setShape handles targets. We need to respect mouse hover if NOT pinned.
 			-- MouseEnter/Leave handles it.
-			-- But if we just unpinned, we should revert to... Expanded if mouse over?
-			-- We'll let MouseLeave handle it if we move away.
 			-- If unpinned while mouse is over, it might stay pinned shape until mouse move?
 			-- We can force check mouse overlap here but maybe overkill.
 		else
@@ -922,7 +932,7 @@ local function createDynamicIsland()
 		
 		-- CRITICAL JUMP FIX: If pinned, HARD SET Y to 0. Else use spring.
 		if localState.isPinned then
-			dynamicIsland.Position = UDim2.new(0.5, 0, 0, 0)
+			dynamicIsland.Position = UDim2.new(0.5, 0, 0, 6) -- Minimal padding from top edge
 		else
 			dynamicIsland.Position = UDim2.new(0.5, 0, newPosY, 0)
 		end
