@@ -665,34 +665,11 @@ local function createDynamicIsland()
 		return btn
 	end
 
-	local playBtn = makeBtn("PlayPause", "rbxassetid://136341313090125", UDim2.new(0.5, 0, 0.5, 0), UDim2.fromOffset(24, 24), function()
+	local playBtn = makeBtn("PlayPause", "rbxassetid://136341313090125", UDim2.new(0.5, 0, 0.5, 0), UDim2.fromOffset(32, 32), function()
 		if isPlaying then spotifyPause() else spotifyResume() end
 	end)
 	makeBtn("Prev", "rbxassetid://138415720834412", UDim2.new(0.5, -45, 0.5, 0), UDim2.fromOffset(24, 24), spotifyPrevious)
 	makeBtn("Next", "rbxassetid://88365123525975", UDim2.new(0.5, 45, 0.5, 0), UDim2.fromOffset(24, 24), spotifyNext)
-
-	local pinBtn = Instance.new("ImageButton")
-	pinBtn.Name = "PinButton"
-	pinBtn.Size = UDim2.fromOffset(20, 20)
-	pinBtn.Position = UDim2.new(1, -30, 1, -30)
-	pinBtn.AnchorPoint = Vector2.new(0.5, 0.5)
-	pinBtn.BackgroundTransparency = 1
-	pinBtn.Image = "rbxassetid://82008729089381"
-	pinBtn.ImageColor3 = Color3.fromRGB(180, 180, 180) -- Subtle grey
-	pinBtn.Parent = expandedContainer
-	
-	pinBtn.MouseButton1Click:Connect(function()
-		-- Toggle pinning logic here if needed, or visual feedback
-		-- For now, maybe toggle StayOpen setting if accessible, or just visual toggle
-		local isPinned = pinBtn.ImageColor3 == Color3.fromRGB(30, 215, 96)
-		if isPinned then
-			pinBtn.ImageColor3 = Color3.fromRGB(180, 180, 180)
-			if siriusValues and siriusValues.settings then siriusValues.settings.dynamicislandpinned = false end
-		else
-			pinBtn.ImageColor3 = Color3.fromRGB(30, 215, 96)
-			if siriusValues and siriusValues.settings then siriusValues.settings.dynamicislandpinned = true end
-		end
-	end)
 
 	local shapes = {
 		[1] = {
@@ -954,10 +931,8 @@ updateDynamicIsland = function(data)
 			if playBtn then
 				if data.playback.playing then
 					playBtn.Image = "rbxassetid://121740587216950"
-					playBtn.Size = UDim2.fromOffset(32, 32)
 				else
 					playBtn.Image = "rbxassetid://136341313090125"
-					playBtn.Size = UDim2.fromOffset(24, 24)
 				end
 			end
 		end
